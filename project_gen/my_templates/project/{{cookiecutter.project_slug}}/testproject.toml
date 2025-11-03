@@ -1,0 +1,8 @@
+# fill the template according this example:
+#[[http]]
+#service_name = "service#1"
+#swagger_url="http://example_host/some_api/exampleservise#1/swagger.json"
+#
+#[[http]]
+#service_name = "service#2"
+#swagger_url="http://example_host/some_another_api/exampleservise#2/swagger.json"

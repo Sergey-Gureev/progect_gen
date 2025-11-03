@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "project_gen"
+version = "0.1.0"
+description = ""
+authors = ["Sergey Gureev <sergey.gureev0205@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "project_gen" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+cookiecutter = "^2.6.0"
+requests = "^2.32.3"
+toml = "^0.10.2"
+
+
+[tool.poetry.scripts]
+project_gen = "project_gen.main:cli"
+
+[tool.poetry.group.lint.dependencies]
+ruff = "^0.12.2"
+mypy = "^1.16.1"
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
+addopts = """
+    --telegram-notifier
+    --alluredir=./allure-results
+    --telegram-notifier-config-file=../telegram-notifier-config.ini
+"""
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

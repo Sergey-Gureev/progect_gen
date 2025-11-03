@@ -1,2 +1,2 @@
-# progect_gen
-progect_gen
+# my_api_tests
+My learning course 
