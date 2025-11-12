@@ -1,0 +1,69 @@
+import os
+import pytest
+from pathlib import Path
+
+{% for client in clients -%}
+import clients.http.{{client.get("package")}} as {{ client.get("package")}}
+{% endfor %}
+
+from swagger_coverage_py.reporter import CoverageReporter
+
+from vyper import v
+import structlog.processors
+
+structlog.configure(
+    processors=[
+        structlog.processors.JSONRenderer(
+            indent=4,
+            ensure_ascii=True,
+            sort_keys=True
+        )
+    ]
+)
+options = (
+    {% for client in clients -%}
+    "service.{{ client.get("package")}}_{{ client.get("client") | underscore }}",
+    {% endfor %}
+)
+
+
+@pytest.fixture(scope="session",autouse=True)
+def set_config(request):
+    config = Path(__file__).parent.parent.joinpath("config")
+    print('huy',config)
+    config_name = request.config.getoption("--env")
+    v.set_config_name(config_name)
+    v.add_config_path(config)
+    v.read_in_config()
+    for option in options:
+        v.set(f"--env", request.config.getoption(f"--{option}"))
+    os.environ["TELEGRAM_BOT_CHAT_ID"] = v.get("telegram.chat_id")
+    os.environ["TELEGRAM_BOT_ACCESS_TOKEN"] = v.get("telegram.token")
+    # request.config.stash['telegram-notifier-addfields']['environment'] = config_name
+    # request.config.stash['telegram-notifier-addfields']['report'] = "http://sergey-gureev.github.io/my_api_tests/"
+    print("huyhuy",v.read_in_config())
+
+# {% for client in clients -%}
+# @pytest.fixture(scope="session", autouse=True)
+# def setup_swagger_coverage_{{ client.get("package")}}():
+#     check links manually
+#     reporter = CoverageReporter(api_name="{{ client.get("package")}}", host="http://5.63.153.31:5051")
+#     reporter.setup(path_to_swagger_json="/swagger/{{ client.get("client") | underscore }}/swagger.json")
+{% endfor %}
+#     yield
+#     reporter.generate_report()
+#     reporter.cleanup_input_files()
+
+def pytest_addoption(parser):
+    parser.addoption("--env", action="store", default="stg", help="run stg")
+    for option in options:
+        parser.addoption(f"--{option}", action="store", default=None)
+
+{% for client in clients %}
+@pytest.fixture(scope="session")
+def {{ client.get("package")}}_{{ client.get("client") | underscore }}() -> {{ client.get("package")}}.{{ client.get("client")}}:
+    configuration = {{ client.get("package")}}.Configuration(host=v.get('service.{{ client.get("package")}}_{{ client.get("client") | underscore }}'))
+    api_client = {{ client.get("package")}}.ApiClient(configuration=configuration)
+    return  {{ client.get("package")}}.{{ client.get("client")}}(api_client=api_client)
+{% endfor %}
+

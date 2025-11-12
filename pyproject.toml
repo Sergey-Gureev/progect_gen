@@ -2,16 +2,20 @@
 name = "project_gen"
 version = "0.1.0"
 description = ""
-authors = ["Sergey Gureev <sergey.gureev0205@gmail.com>"]
+authors = [
+    "Sergey-Gureev <sergey.gureev0205@gmail.com>"
+]
 readme = "README.md"
 packages = [{ include = "project_gen" }]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<4.0"
-cookiecutter = "^2.6.0"
-requests = "^2.32.3"
-toml = "^0.10.2"
-
+    python = ">=3.10,<4.0"
+    cookiecutter = "^2.6.0"
+    requests = "^2.32.3"
+    toml = "^0.10.2"
+    aiohttp = "3.11.12"
+    aiohttp-retry = "^2.9.1"
+    pytest-asyncio = ">=1.0.0,<2.0.0"
 
 [tool.poetry.scripts]
 project_gen = "project_gen.main:cli"

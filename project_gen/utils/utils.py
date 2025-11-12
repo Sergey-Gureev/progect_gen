@@ -7,6 +7,9 @@ from pathlib import Path
 
 from cookiecutter.main import cookiecutter
 
+from project_gen.internal.collector import Generator
+
+
 def run_command(command: list[str]) -> str:
     result = subprocess.run(args=command, text=True, capture_output=True)
     if result.returncode != 0:
@@ -85,6 +88,7 @@ def generate_api(
         my_command.extend(["-t", templates])
     run_command(my_command)
     _move_files(package_name=package_name)
+    Generator().generate()
 
 def _move_files(package_name: str) -> None:
     if os.path.exists(f"clients/http/{package_name}"):
