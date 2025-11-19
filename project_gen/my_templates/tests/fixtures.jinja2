@@ -1,6 +1,9 @@
 import os
 import pytest
 from pathlib import Path
+from pprint import pprint
+print({{% clients %}}
+
 {% for client in clients -%}
 import clients.http.{{client.get("package")}} as {{ client.get("package")}}
 {% endfor %}
@@ -40,16 +43,17 @@ def set_config(request):
     # request.config.stash['telegram-notifier-addfields']['environment'] = config_name
     # request.config.stash['telegram-notifier-addfields']['report'] = "http://sergey-gureev.github.io/my_api_tests/"
 
-#{% for client in clients -%}
+{% for client in clients -%}
+
 @pytest.fixture(scope="session", autouse=True)
-#def setup_swagger_coverage_{{ client.get("package")}}():
+def setup_swagger_coverage_{{ client.get("package")}}():
     # TODO check links manually
-#    reporter = CoverageReporter(api_name="{{ client.get("package") }}", host="{{client.get("base_url")}}")
- #   reporter.setup(path_to_swagger_json="/{{ client.get("base_url") | underscore }}/docs/openapi.json")
+    reporter = CoverageReporter(api_name="{{ client.get("package") }}", host="{{client.get("base_url")}}")
+    reporter.setup(path_to_swagger_json="/{{ client.get("base_url") | underscore }}/docs/openapi.json")
     yield
     reporter.generate_report()
     reporter.cleanup_input_files()
-#{% endfor %}
+{% endfor %}
 
 def pytest_addoption(parser):
     parser.addoption("--env", action="store", default="stg", help="run stg")
