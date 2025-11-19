@@ -15,5 +15,5 @@ use command:
 
 check `config/stg.yaml`;
 
-go to tests and remove `@pytest.skip`
+go to tests and remove `@pytest.mark.skip`
 
