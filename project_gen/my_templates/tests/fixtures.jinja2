@@ -40,7 +40,7 @@ def set_config(request):
     # request.config.stash['telegram-notifier-addfields']['environment'] = config_name
     # request.config.stash['telegram-notifier-addfields']['report'] = "http://sergey-gureev.github.io/my_api_tests/"
 
-{% for client in clients -%}
+#{% for client in clients -%}
 @pytest.fixture(scope="session", autouse=True)
 def setup_swagger_coverage_{{ client.get("package")}}():
     # TODO check links manually
@@ -49,7 +49,7 @@ def setup_swagger_coverage_{{ client.get("package")}}():
     yield
     reporter.generate_report()
     reporter.cleanup_input_files()
-{% endfor %}
+#{% endfor %}
 
 def pytest_addoption(parser):
     parser.addoption("--env", action="store", default="stg", help="run stg")
