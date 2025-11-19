@@ -51,8 +51,8 @@ def create_project(template: str | None) -> None:
         "repository": project_name
     }
     cookiecutter(
-        # template="gh:Sergey-Gureev/my_template",
-        template = template,
+        template="gh:Sergey-Gureev/my_template",
+        # template = template,
         no_input=True,
         overwrite_if_exists=True,
         output_dir=parent_dir,

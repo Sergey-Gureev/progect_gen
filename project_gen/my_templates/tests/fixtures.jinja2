@@ -42,7 +42,7 @@ def set_config(request):
 
 #{% for client in clients -%}
 @pytest.fixture(scope="session", autouse=True)
-def setup_swagger_coverage_{{ client.get("package")}}():
+#def setup_swagger_coverage_{{ client.get("package")}}():
     # TODO check links manually
 #    reporter = CoverageReporter(api_name="{{ client.get("package") }}", host="{{client.get("base_url")}}")
  #   reporter.setup(path_to_swagger_json="/{{ client.get("base_url") | underscore }}/docs/openapi.json")

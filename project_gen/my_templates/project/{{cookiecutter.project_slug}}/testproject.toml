@@ -8,3 +8,4 @@ base_url="http://5.63.153.31:8085/v1/"
 [[http]]
 service_name = "service#2"
 swagger_url="http://example_host/some_another_api/exampleservise#2/swagger.json"
+base_url="http://5.63.153.31:8085/v1/"
