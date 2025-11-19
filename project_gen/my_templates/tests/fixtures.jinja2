@@ -44,8 +44,8 @@ def set_config(request):
 @pytest.fixture(scope="session", autouse=True)
 def setup_swagger_coverage_{{ client.get("package")}}():
     # TODO check links manually
-    reporter = CoverageReporter(api_name="{{ client.get("package") }}", host="{{client.get("base_url")}}")
-    reporter.setup(path_to_swagger_json="/{{ client.get("base_url") | underscore }}/docs/openapi.json")
+#    reporter = CoverageReporter(api_name="{{ client.get("package") }}", host="{{client.get("base_url")}}")
+ #   reporter.setup(path_to_swagger_json="/{{ client.get("base_url") | underscore }}/docs/openapi.json")
     yield
     reporter.generate_report()
     reporter.cleanup_input_files()
