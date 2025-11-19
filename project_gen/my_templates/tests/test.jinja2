@@ -1,0 +1,22 @@
+from typing import Optional
+from pydantic import *  # noqa: F401,F403
+import pytest
+import clients.http.{{ package }} as {{ package | underscore }}
+from clients.http.{{ package }}.models import *  # noqa: F401
+
+
+@pytest.mark.skip
+async def test_{{ method_name }}({{package | underscore}}_{{client_name | underscore }}: {{package | underscore}}.{{client_name}}) -> None:
+    {% for param_name, param_type in parameters -%}
+    {% if param_name != 'self' and not param_name.startswith('_') -%}
+    {{ param_name }}: {{ param_type }} ={% if param_type.startswith('Optional') %} None {% else %} ... {% endif %}
+    {% endif -%}
+    {% endfor -%}
+    response = await {{package | underscore}}_{{client_name | underscore }}.{{ method_name }}(
+        {% for param_name, param_type in parameters -%}
+        {% if param_name != 'self' and not param_name.startswith('_') -%}
+        {{ param_name }}={{ param_name }},
+        {% endif %}
+        {%- endfor -%}
+    )
+    assert response

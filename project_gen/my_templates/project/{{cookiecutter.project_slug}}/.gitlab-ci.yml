@@ -1,0 +1,48 @@
+stages:
+    - testing
+    - reports
+
+run_tests:
+    stage: testing
+    tags:
+    - docker
+    image: python:3.10-slim
+    before_script:
+        - pip install --upgrade pip
+        - pip install poetry
+        - poetry install --no-root
+    script:
+        - poetry run pytest --alluredir=./allure-results tests
+    allow_failure: true
+    artifacts:
+        when: always
+        paths:
+            - ./allure-results
+        expire_in: 1 days
+
+allure:
+    stage: reports
+    tags:
+        - docker
+    image: frankescobar/allure-docker-service
+    script:
+        - allure generate -c ./allure-results -o allure-report
+    artifacts:
+        paths:
+            - allure-results
+            - allure-report
+        expire_in: 1 days
+    rules:
+        - when: always
+
+pages:
+    stage: reports
+    needs: ['allure']
+    script:
+        - mkdir public
+        - mv ./allure-report/* public
+    artifacts:
+        paths:
+            - public
+    rules:
+        - when: always

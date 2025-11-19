@@ -5,7 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 from inflection import camelize, underscore
 
 
-class ClientConnector():
+class ClientCollector():
     base_path: Path = Path(".") / "clients" / "http"
 
     def collect_clients(self):
@@ -23,22 +23,25 @@ class ClientConnector():
                         clients.append(client)
         return clients
 
-class Generator:
+class FixturesGenerator:
 
     def __init__(self):
-        self.clients = ClientConnector().collect_clients()
+        self.clients = ClientCollector().collect_clients()
         self.templates_dir = Path(__file__).parent.parent / "my_templates" / "tests"
         self.env = Environment(loader=FileSystemLoader(self.templates_dir), autoescape=True)
         self.env.filters["underscore"] = underscore
         self.env.filters["camelize"] = camelize
 
-    def generate(self):
+    def generate(self, base_url):
         fixture_template = self.env.get_template("fixtures.jinja2")
+        stg_env_template = self.env.get_template("stg_env_template.jinja2")
+        for client in self.clients:
+            client['host'] = base_url
         fixtures = fixture_template.render(clients=self.clients)
         with open("clients/fixtures.py", "w", encoding="utf-8") as f:
             f.write(fixtures)
-        return fixtures
 
+        fixtures = stg_env_template.render(clients=self.clients)
+        with open("config/stg.yaml", "w", encoding="utf-8") as f:
+            f.write(fixtures)
 
-# print(ClientConnector().collect_clients())
-# print(Generator().generate())

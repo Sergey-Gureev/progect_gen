@@ -1,8 +1,10 @@
-# fill the template according this example:
-#[[http]]
-#service_name = "service#1"
-#swagger_url="http://example_host/some_api/exampleservise#1/swagger.json"
-#
-#[[http]]
-#service_name = "service#2"
-#swagger_url="http://example_host/some_another_api/exampleservise#2/swagger.json"
+ # fill the template according this example; use snake_case:
+[[http]]
+service_name = "cyco_app"
+swagger_url="https://example_host/some_api/exampleservise#1/swagger.json"
+base_url="http://5.63.153.31:8085/v1/"
+
+
+[[http]]
+service_name = "service#2"
+swagger_url="http://example_host/some_another_api/exampleservise#2/swagger.json"

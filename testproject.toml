@@ -1,8 +1,0 @@
-[[http]]
-service_name = "account"
-swagger_url="http://5.63.153.31:5051/swagger/Account/swagger.json"
-
-[[http]]
-service_name = "common"
-swagger_url="http://5.63.153.31:5051/swagger/Common/swagger.json"
-

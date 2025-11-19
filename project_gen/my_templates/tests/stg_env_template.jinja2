@@ -1,0 +1,4 @@
+service:
+  {% for client in clients -%}
+    {{ client.get("package")}}_{{ client.get("client") | underscore }}: "{{ client.get("host") }}"
+  {% endfor %}

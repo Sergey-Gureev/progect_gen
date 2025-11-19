@@ -7,8 +7,6 @@ from pathlib import Path
 
 from cookiecutter.main import cookiecutter
 
-from project_gen.internal.collector import Generator
-
 
 def run_command(command: list[str]) -> str:
     result = subprocess.run(args=command, text=True, capture_output=True)
@@ -27,7 +25,7 @@ def check_git_repository():
 def get_git_user_info() -> tuple[str, str]:
     user_email = run_command(["git", "config", "--get", "user.email"])
     user_name = run_command(["git", "config", "--get", "user.name"])
-    authors = f"{user_name or 'user_name'} <{user_email or 'user_name@example.com'}"
+    authors = f"{user_name or 'user_name'}, <{user_email or 'user_name@example.com'}>"
     return user_email, authors
 
 def get_git_repository_info():
@@ -53,8 +51,8 @@ def create_project(template: str | None) -> None:
         "repository": project_name
     }
     cookiecutter(
-        template="gh:Sergey-Gureev/my_template",
-        # template = template,
+        # template="gh:Sergey-Gureev/my_template",
+        template = template,
         no_input=True,
         overwrite_if_exists=True,
         output_dir=parent_dir,
@@ -67,6 +65,8 @@ def create_project(template: str | None) -> None:
 def setup(template:str = None):
     check_git_repository()
     create_project(template=template)
+    print("fill testproject.toml file")
+    print("run 'project_gen generate'")
 
 def generate_api(
         package_name: str,
@@ -88,14 +88,16 @@ def generate_api(
         my_command.extend(["-t", templates])
     run_command(my_command)
     _move_files(package_name=package_name)
-    Generator().generate()
+
+
+
 
 def _move_files(package_name: str) -> None:
     if os.path.exists(f"clients/http/{package_name}"):
         shutil.rmtree(f"clients/http/{package_name}")
 
     shutil.move(f"{package_name}/{package_name}", f"clients/http/{package_name}")
-    shutil.rmtree(package_name)
+    shutil.rmtree(f"{package_name}")
     _replace_imports_in_files(directory=f"clients/http/{package_name}",package_name=package_name)
 
 def _replace_imports_in_files(directory: str, package_name: str) -> None:
