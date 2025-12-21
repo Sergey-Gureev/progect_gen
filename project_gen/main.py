@@ -23,12 +23,15 @@ def generate_command(templates: any = None) -> None:
             package_name = http_service["service_name"]
             swagger_url = http_service["swagger_url"]
             base_url = http_service["base_url"]
+            relative_path_to_swagger = http_service["relative_path_to_swagger"]
+
             generate_api(
                 package_name=package_name,
                 swagger_url=swagger_url,
                 templates=templates
             )
-            FixturesGenerator().generate(base_url=base_url)
+            print("project_gen.main: base_url: ", base_url)
+            FixturesGenerator().generate(base_url=base_url, relative_path_to_swagger=relative_path_to_swagger)
             print("check/fill config/stg.yaml file")
     TestsGenerator().generate()
 
@@ -46,8 +49,4 @@ cli.add_command(setup_command)
 
 if __name__ == "__main__":
     cli()
-    # package_name="common"
-    # download_codegen()
-    # create_project(package_name=package_name)
-
 

@@ -3,17 +3,21 @@ from inspect import getfullargspec
 import json
 import pprint
 import re  # noqa: F401
+
 {{#vendorExtensions.x-py-other-imports}}
 {{{.}}}
 {{/vendorExtensions.x-py-other-imports}}
+
 {{#vendorExtensions.x-py-model-imports}}
 {{{.}}}
 {{/vendorExtensions.x-py-model-imports}}
+
 from typing import Union, Any, List, Set, TYPE_CHECKING, Optional, Dict
 from typing_extensions import Literal, Self
-from pydantic import Field
+from pydantic import Field, ValidationError, field_validator
 
 {{#lambda.uppercase}}{{{classname}}}{{/lambda.uppercase}}_ANY_OF_SCHEMAS = [{{#anyOf}}"{{.}}"{{^-last}}, {{/-last}}{{/anyOf}}]
+
 
 class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}):
     """
@@ -24,18 +28,27 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
     # data type: {{{dataType}}}
     {{vendorExtensions.x-py-name}}: {{{vendorExtensions.x-py-typing}}}
 {{/composedSchemas.anyOf}}
+
     if TYPE_CHECKING:
-        actual_instance: Optional[Union[{{#anyOf}}{{{.}}}{{^-last}}, {{/-last}}{{/anyOf}}]] = None
+        actual_instance: Optional[Union[
+            {{#anyOf}}{{{.}}}{{^-last}}, {{/-last}}{{/anyOf}}
+        ]] = None
     else:
         actual_instance: Any = None
+
     any_of_schemas: Set[str] = { {{#anyOf}}"{{.}}"{{^-last}}, {{/-last}}{{/anyOf}} }
 
+    # ---------------------------------------------------------
+    # Patched Pydantic v2 config to allow nulls everywhere
+    # ---------------------------------------------------------
     model_config = {
         "validate_assignment": True,
         "protected_namespaces": (),
+        "strict": False,            # allow None + non-strict coercions
+        "validate_default": False,  # prevent rejecting None defaults
     }
-{{#discriminator}}
 
+{{#discriminator}}
     discriminator_value_class_map: Dict[str, str] = {
 {{#children}}
         '{{^vendorExtensions.x-discriminator-value}}{{name}}{{/vendorExtensions.x-discriminator-value}}{{#vendorExtensions.x-discriminator-value}}{{{vendorExtensions.x-discriminator-value}}}{{/vendorExtensions.x-discriminator-value}}': '{{{classname}}}'{{^-last}},{{/-last}}
@@ -46,22 +59,25 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
     def __init__(self, *args, **kwargs) -> None:
         if args:
             if len(args) > 1:
-                raise ValueError("If a position argument is used, only 1 is allowed to set `actual_instance`")
+                raise ValueError("If a positional argument is used, only 1 is allowed (to set `actual_instance`).")
             if kwargs:
-                raise ValueError("If a position argument is used, keyword arguments cannot be used.")
+                raise ValueError("Positional argument cannot be combined with keyword args.")
             super().__init__(actual_instance=args[0])
         else:
             super().__init__(**kwargs)
 
+    # ---------------------------------------------------------
+    # VALIDATOR PATCHED TO ALLOW NULL ALWAYS
+    # ---------------------------------------------------------
     @field_validator('actual_instance')
     def actual_instance_must_validate_anyof(cls, v):
-        {{#isNullable}}
+        # Allow null values unconditionally
         if v is None:
-            return v
+            return None
 
-        {{/isNullable}}
-        instance = {{{classname}}}.model_construct()
+        instance = {{classname}}.model_construct()
         error_messages = []
+
         {{#composedSchemas.anyOf}}
         # validate data type: {{{dataType}}}
         {{#isContainer}}
@@ -71,6 +87,7 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
         except (ValidationError, ValueError) as e:
             error_messages.append(str(e))
         {{/isContainer}}
+
         {{^isContainer}}
         {{#isPrimitiveType}}
         try:
@@ -79,21 +96,28 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
         except (ValidationError, ValueError) as e:
             error_messages.append(str(e))
         {{/isPrimitiveType}}
+
         {{^isPrimitiveType}}
         if not isinstance(v, {{{dataType}}}):
             error_messages.append(f"Error! Input type `{type(v)}` is not `{{{dataType}}}`")
         else:
             return v
-
         {{/isPrimitiveType}}
         {{/isContainer}}
-        {{/composedSchemas.anyOf}}
-        if error_messages:
-            # no match
-            raise ValueError("No match found when setting the actual_instance in {{{classname}}} with anyOf schemas: {{#anyOf}}{{{.}}}{{^-last}}, {{/-last}}{{/anyOf}}. Details: " + ", ".join(error_messages))
-        else:
-            return v
 
+        {{/composedSchemas.anyOf}}
+
+        if error_messages:
+            raise ValueError(
+                "No match found when setting actual_instance in {{{classname}}} "
+                "with anyOf schemas: {{#anyOf}}{{{.}}}{{^-last}}, {{/-last}}{{/anyOf}}. "
+                "Details: " + ", ".join(error_messages)
+            )
+        return v
+
+    # ---------------------------------------------------------
+    # JSON DESERIALIZATION — ALLOW JSON null
+    # ---------------------------------------------------------
     @classmethod
     def from_dict(cls, obj: Dict[str, Any]) -> Self:
         return cls.from_json(json.dumps(obj))
@@ -102,81 +126,82 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
     def from_json(cls, json_str: str) -> Self:
         """Returns the object represented by the json string"""
         instance = cls.model_construct()
-        {{#isNullable}}
-        if json_str is None:
+
+        # Accept 'null' from JSON unconditionally
+        if json_str is None or json_str == "null":
             return instance
 
-        {{/isNullable}}
         error_messages = []
+
         {{#composedSchemas.anyOf}}
         {{#isContainer}}
-        # deserialize data into {{{dataType}}}
         try:
-            # validation
             instance.{{vendorExtensions.x-py-name}} = json.loads(json_str)
-            # assign value to actual_instance
             instance.actual_instance = instance.{{vendorExtensions.x-py-name}}
             return instance
         except (ValidationError, ValueError) as e:
             error_messages.append(str(e))
         {{/isContainer}}
+
         {{^isContainer}}
         {{#isPrimitiveType}}
-        # deserialize data into {{{dataType}}}
         try:
-            # validation
             instance.{{vendorExtensions.x-py-name}} = json.loads(json_str)
-            # assign value to actual_instance
             instance.actual_instance = instance.{{vendorExtensions.x-py-name}}
             return instance
         except (ValidationError, ValueError) as e:
             error_messages.append(str(e))
         {{/isPrimitiveType}}
+
         {{^isPrimitiveType}}
-        # {{vendorExtensions.x-py-name}}: {{{vendorExtensions.x-py-typing}}}
         try:
             instance.actual_instance = {{{dataType}}}.from_json(json_str)
             return instance
         except (ValidationError, ValueError) as e:
-             error_messages.append(str(e))
+            error_messages.append(str(e))
         {{/isPrimitiveType}}
         {{/isContainer}}
         {{/composedSchemas.anyOf}}
 
         if error_messages:
-            # no match
-            raise ValueError("No match found when deserializing the JSON string into {{{classname}}} with anyOf schemas: {{#anyOf}}{{{.}}}{{^-last}}, {{/-last}}{{/anyOf}}. Details: " + ", ".join(error_messages))
-        else:
-            return instance
+            raise ValueError(
+                "No match found when deserializing JSON into {{{classname}}} with anyOf schemas: "
+                "{{#anyOf}}{{{.}}}{{^-last}}, {{/-last}}{{/anyOf}}. "
+                "Details: " + ", ".join(error_messages)
+            )
 
+        return instance
+
+    # ---------------------------------------------------------
+    # SERIALIZATION
+    # ---------------------------------------------------------
     def to_json(self) -> str:
-        """Returns the JSON representation of the actual instance"""
         if self.actual_instance is None:
             return "null"
 
         if hasattr(self.actual_instance, "to_json") and callable(self.actual_instance.to_json):
             return self.actual_instance.to_json()
-        else:
-            return json.dumps(self.actual_instance)
+
+        return json.dumps(self.actual_instance)
 
     def to_dict(self) -> Optional[Union[Dict[str, Any], {{#anyOf}}{{.}}{{^-last}}, {{/-last}}{{/anyOf}}]]:
-        """Returns the dict representation of the actual instance"""
         if self.actual_instance is None:
             return None
 
         if hasattr(self.actual_instance, "to_dict") and callable(self.actual_instance.to_dict):
             return self.actual_instance.to_dict()
-        else:
-            return self.actual_instance
+
+        return self.actual_instance
 
     def to_str(self) -> str:
-        """Returns the string representation of the actual instance"""
         return pprint.pformat(self.model_dump())
+
 
 {{#vendorExtensions.x-py-postponed-model-imports.size}}
 {{#vendorExtensions.x-py-postponed-model-imports}}
 {{{.}}}
 {{/vendorExtensions.x-py-postponed-model-imports}}
-# TODO: Rewrite to not use raise_errors
+
+# required for Pydantic v2 forward reference resolution
 {{classname}}.model_rebuild(raise_errors=False)
 {{/vendorExtensions.x-py-postponed-model-imports.size}}

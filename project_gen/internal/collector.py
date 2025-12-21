@@ -32,11 +32,12 @@ class FixturesGenerator:
         self.env.filters["underscore"] = underscore
         self.env.filters["camelize"] = camelize
 
-    def generate(self, base_url):
+    def generate(self, base_url, relative_path_to_swagger):
         fixture_template = self.env.get_template("fixtures.jinja2")
         stg_env_template = self.env.get_template("stg_env_template.jinja2")
         for client in self.clients:
             client['host'] = base_url
+            client['relative_path_to_swagger'] = relative_path_to_swagger
         fixtures = fixture_template.render(clients=self.clients)
         with open("clients/fixtures.py", "w", encoding="utf-8") as f:
             f.write(fixtures)

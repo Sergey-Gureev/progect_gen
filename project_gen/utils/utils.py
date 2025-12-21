@@ -51,8 +51,7 @@ def create_project(template: str | None) -> None:
         "repository": project_name
     }
     cookiecutter(
-        template="gh:Sergey-Gureev/my_template",
-        # template = template,
+        template = template,
         no_input=True,
         overwrite_if_exists=True,
         output_dir=parent_dir,
@@ -121,10 +120,4 @@ def _replace_imports_in_files(directory: str, package_name: str) -> None:
         with open(file_path, "w", encoding="utf-8") as file:
             file.writelines(updated_lines)
 
-# if __name__ == "__main__":
-#     get_git_repository_info()
-#     create_project()
-#     generate_api(
-#         package_name="register_service",
-#         swagger_url="http://5.63.153.31:8085/register/openapi.json"
-#     )
+

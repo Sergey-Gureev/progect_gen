@@ -2,7 +2,7 @@ import os
 import pytest
 from pathlib import Path
 from pprint import pprint
-print({{% clients %}}
+
 
 {% for client in clients -%}
 import clients.http.{{client.get("package")}} as {{ client.get("package")}}
@@ -43,16 +43,27 @@ def set_config(request):
     # request.config.stash['telegram-notifier-addfields']['environment'] = config_name
     # request.config.stash['telegram-notifier-addfields']['report'] = "http://sergey-gureev.github.io/my_api_tests/"
 
-{% for client in clients -%}
 
+
+{% for client in clients[:1]: -%}
 @pytest.fixture(scope="session", autouse=True)
 def setup_swagger_coverage_{{ client.get("package")}}():
     # TODO check links manually
-    reporter = CoverageReporter(api_name="{{ client.get("package") }}", host="{{client.get("base_url")}}")
-    reporter.setup(path_to_swagger_json="/{{ client.get("base_url") | underscore }}/docs/openapi.json")
+    reporter = CoverageReporter(api_name='{{ client.get("package") }}', host='{{ client.get("host") }}')
+    reporter.setup(path_to_swagger_json='{{- client.get("relative_path_to_swagger") | underscore -}}')
     yield
     reporter.generate_report()
     reporter.cleanup_input_files()
+
+@pytest.fixture(scope="session")
+def {{ client.get("package")}}_api_client(set_config) -> {{ client.get("package")}}.ApiClient:
+    configuration = {{ client.get("package")}}.Configuration(host=v.get('service.{{ client.get("package")}}_{{ client.get("client") | underscore }}'))
+    api_client = {{ client.get("package")}}.ApiClient(
+        configuration=configuration,
+        header_name="Authorization",
+        header_value="api_key"
+    )
+    return api_client
 {% endfor %}
 
 def pytest_addoption(parser):
@@ -60,11 +71,11 @@ def pytest_addoption(parser):
     for option in options:
         parser.addoption(f"--{option}", action="store", default=None)
 
+
+
 {% for client in clients %}
 @pytest.fixture(scope="session")
-def {{ client.get("package")}}_{{ client.get("client") | underscore }}(set_config) -> {{ client.get("package")}}.{{ client.get("client")}}:
-    configuration = {{ client.get("package")}}.Configuration(host=v.get('service.{{ client.get("package")}}_{{ client.get("client") | underscore }}'))
-    api_client = {{ client.get("package")}}.ApiClient(configuration=configuration)
-    return  {{ client.get("package")}}.{{ client.get("client")}}(api_client=api_client)
+def {{ client.get("package")}}_{{ client.get("client") | underscore }}({{ client.get("package")}}_api_client) -> {{ client.get("package")}}.{{ client.get("client")}}:
+    return  {{ client.get("package")}}.{{ client.get("client")}}(api_client={{ client.get("package")}}_api_client)
 {% endfor %}
 

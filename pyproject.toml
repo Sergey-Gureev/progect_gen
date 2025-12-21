@@ -16,6 +16,8 @@ packages = [{ include = "project_gen" }]
     aiohttp = "3.11.12"
     aiohttp-retry = "^2.9.1"
     pytest-asyncio = ">=1.0.0,<2.0.0"
+    pytest = ">=4.6.4,<9"
+    schemathesis = "^3.39.16"
 
 [tool.poetry.scripts]
 project_gen = "project_gen.main:cli"
@@ -28,10 +30,10 @@ mypy = "^1.16.1"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
 addopts = """
-    --telegram-notifier
     --alluredir=./allure-results
-    --telegram-notifier-config-file=../telegram-notifier-config.ini
 """
+#    --telegram-notifier
+#    --telegram-notifier-config-file=../telegram-notifier-config.ini
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
