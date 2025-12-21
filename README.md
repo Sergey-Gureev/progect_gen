@@ -7,7 +7,7 @@ install this package:
 `pip install git+https://github.com/Sergey-Gureev/progect_gen.git`
 
 use command:
-`progect_gen setup`
+`project_gen setup`
 -> it will generate progect structure. Go to testproject.toml file and fill it 
 
 use command:
