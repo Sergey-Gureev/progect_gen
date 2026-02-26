@@ -3,14 +3,16 @@ from tempfile import template
 
 from jinja2 import Environment, FileSystemLoader
 
-def camelize(word):
-    return re.sub(r"(?:^|_)(.)", lambda m: m.group(1).upper(), string)
-    
-def underscore(string):
-    word = re.sub(r"([A-Z]+)([A-Z][a-z])", r'\1_\2', word)
-    word = re.sub(r"([a-z\d])([A-Z])", r'\1_\2', word)
-    word = word.replace("-", "_")
-    return word.lower()
+def camelize(string):
+    return "".join(word.capitalize() for word in string.split("_"))
+
+def underscore(word):
+    result = []
+    for i, char in enumerate(word):
+        if char.isupper() and i > 0:
+            result.append("_")
+        result.append(char.lower())
+    return "".join(result).replace("-", "_")
     
 class ClientCollector():
     base_path: Path = Path(".") / "clients" / "http"
