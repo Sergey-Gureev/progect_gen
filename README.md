@@ -1,7 +1,10 @@
 # how to start
 create new repository:
-via UI then clone it; or using command
-`git init`
+via UI then clone it; 
+
+`create virtual env:`
+python3 -m venv .venv
+source .venv/bin/activate
 
 install this package:
 `pip install git+https://github.com/Sergey-Gureev/progect_gen.git`
