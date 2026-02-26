@@ -2,9 +2,16 @@ from pathlib import Path
 from tempfile import template
 
 from jinja2 import Environment, FileSystemLoader
-from inflection import camelize, underscore
 
-
+def camelize(word):
+    return re.sub(r"(?:^|_)(.)", lambda m: m.group(1).upper(), string)
+    
+def underscore(string):
+    word = re.sub(r"([A-Z]+)([A-Z][a-z])", r'\1_\2', word)
+    word = re.sub(r"([a-z\d])([A-Z])", r'\1_\2', word)
+    word = word.replace("-", "_")
+    return word.lower()
+    
 class ClientCollector():
     base_path: Path = Path(".") / "clients" / "http"
 
