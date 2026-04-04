@@ -2,7 +2,7 @@
 name = "{{ cookiecutter.project_slug }}"
 version = "0.1.0"
 description = ""
-authors = [{ name="""{{ cookiecutter.authors.split(",")[0] | replace("'", '"') }}""", email="""{{ cookiecutter.authors.split(",")[1] | replace("'", '"') }}""" }]
+authors = [{ name="{{ cookiecutter.authors or 'Sergey-Gureev' }}", email="{{ cookiecutter.user_email or 'sergey.gureev0205@gmail.com' }}" }]
 
 
 readme = "README.md"
