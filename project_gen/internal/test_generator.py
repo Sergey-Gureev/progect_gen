@@ -1,11 +1,10 @@
 import ast
 from dataclasses import dataclass
-from inflection import underscore, camelize
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 from jinja2 import Environment, FileSystemLoader
 
-from project_gen.internal.collector import ClientCollector
+from project_gen.internal.collector import ClientCollector, underscore, camelize
 
 
 @dataclass
