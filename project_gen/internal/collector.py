@@ -60,3 +60,30 @@ class FixturesGenerator:
         with open("config/stg.yaml", "w", encoding="utf-8") as f:
             f.write(stg_env_template.render(clients=self.clients))
 
+        self._generate_coverage_configs(services)
+
+    def _generate_coverage_configs(self, services: list[dict]) -> None:
+        template_config = Path("swagger-coverage-config-*.json")
+        existing = list(Path(".").glob("swagger-coverage-config-*.json"))
+        config_content = existing[0].read_text() if existing else self._default_coverage_config()
+
+        for service in services:
+            config_path = Path(f"swagger-coverage-config-{service['service_name']}.json")
+            if not config_path.exists():
+                config_path.write_text(config_content)
+
+    @staticmethod
+    def _default_coverage_config() -> str:
+        import json
+        return json.dumps({
+            "rules": {
+                "status": {"enable": True, "ignore": [], "filter": []},
+                "paths": {"enable": True, "ignore": []},
+                "only-declared-status": {"enable": False},
+                "exclude-deprecated": {"enable": True}
+            },
+            "writers": {
+                "html": {"locale": "en", "filename": "swagger-coverage-report.html"}
+            }
+        }, indent=4)
+
