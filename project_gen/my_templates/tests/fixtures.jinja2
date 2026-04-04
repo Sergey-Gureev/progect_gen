@@ -1,5 +1,10 @@
+import json
+import os
+import re
 import pytest
+import aiohttp
 from pathlib import Path
+from faker import Faker
 
 {% set seen = namespace(packages=[]) %}
 {%- for client in clients %}
@@ -30,6 +35,42 @@ options = (
 )
 
 
+def _coverage_trace(host: str, output_dir: str) -> aiohttp.TraceConfig:
+    """aiohttp TraceConfig that writes swagger-coverage files for each request."""
+    trace = aiohttp.TraceConfig()
+
+    async def on_request_end(session, ctx, params):
+        url = str(params.url)
+        method = params.method.lower()
+        response = params.response
+        path = re.sub(f"^{re.escape(host.rstrip('/'))}", "", url.split("?")[0]) or "/"
+        scheme = re.match(r"(\w+)://", host).group(1)
+
+        schema = {
+            "swagger": "2.0",
+            "host": host,
+            "schemes": [scheme],
+            "consumes": [response.request_info.headers.get("content-type", "application/json")],
+            "produces": [response.headers.get("content-type", "application/json")],
+            "paths": {
+                path: {
+                    method: {
+                        "parameters": [],
+                        "responses": {response.status: {}}
+                    }
+                }
+            }
+        }
+        os.makedirs(output_dir, exist_ok=True)
+        rnd = Faker().pystr(min_chars=5, max_chars=5)
+        file_name = f"{method.upper()} {path[1:]} ({rnd}).json".replace("/", "-").replace(":", "_")
+        with open(f"{output_dir}/{file_name}", "w") as f:
+            json.dump(schema, f, indent=4)
+
+    trace.on_request_end.append(on_request_end)
+    return trace
+
+
 @pytest.fixture(scope="session", autouse=True)
 def set_config(request):
     config = Path(__file__).parent.parent.joinpath("config")
@@ -46,6 +87,7 @@ def pytest_addoption(parser):
     for option in options:
         parser.addoption(f"--{option}", action="store", default=None)
 
+
 {% set seen = namespace(packages=[]) %}
 {%- for client in clients %}
 {%- if client.get("package") not in seen.packages %}
@@ -59,22 +101,26 @@ def setup_swagger_coverage_{{ client.get("package") }}():
     yield
     reporter.generate_report()
     reporter.cleanup_input_files()
-{%- set seen.packages = seen.packages + [client.get("package")] %}
-{%- endif %}
-{%- endfor %}
 
-{% set seen = namespace(packages=[]) %}
-{%- for client in clients %}
-{%- if client.get("package") not in seen.packages %}
 
 @pytest.fixture(scope="session")
 def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package") }}.ApiClient:
-    configuration = {{ client.get("package") }}.Configuration(host=v.get('service.{{ client.get("package") }}'))
-    return {{ client.get("package") }}.ApiClient(
+    host = v.get('service.{{ client.get("package") }}')
+    host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
+    output_dir = f"swagger-coverage-output/{host_part}-{{ client.get('package') }}"
+
+    configuration = {{ client.get("package") }}.Configuration(host=host)
+    api_client = {{ client.get("package") }}.ApiClient(
         configuration=configuration,
         header_name="Authorization",
         header_value="api_key"
     )
+    api_client.rest_client.pool_manager = aiohttp.ClientSession(
+        connector=aiohttp.TCPConnector(ssl=False),
+        trust_env=True,
+        trace_configs=[_coverage_trace(host, output_dir)]
+    )
+    return api_client
 
 {%- set seen.packages = seen.packages + [client.get("package")] %}
 {%- endif %}
