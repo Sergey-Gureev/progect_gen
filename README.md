@@ -125,6 +125,41 @@ git add .
 git commit -m "init: generated from swagger"
 ```
 
+## Running tests
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run tests for a specific service
+pytest tests/cyco_app/
+
+# Run a single test
+pytest tests/cyco_app/http/users_api/v1_users_get/test_v1_users_get.py
+```
+
+## Allure reports
+
+Install Allure CLI once (requires Java):
+
+```bash
+# Mac
+brew install allure
+
+# Other — see https://allurereport.org/docs/install/
+```
+
+Test results are written to `allure-results/` automatically on every run (configured in `pyproject.toml`).
+
+```bash
+# Open interactive report in browser
+allure serve allure-results
+
+# Or generate static HTML report
+allure generate allure-results -o allure-report --clean
+allure open allure-report
+```
+
 ## Known issues
 
 ### `models/json_any.py` — catch-all for complex dictionaries
