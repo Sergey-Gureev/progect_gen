@@ -46,7 +46,6 @@ def pytest_addoption(parser):
     for option in options:
         parser.addoption(f"--{option}", action="store", default=None)
 
-
 {% set seen = namespace(packages=[]) %}
 {%- for client in clients %}
 {%- if client.get("package") not in seen.packages %}
@@ -60,7 +59,13 @@ def setup_swagger_coverage_{{ client.get("package") }}():
     yield
     reporter.generate_report()
     reporter.cleanup_input_files()
+{%- set seen.packages = seen.packages + [client.get("package")] %}
+{%- endif %}
+{%- endfor %}
 
+{% set seen = namespace(packages=[]) %}
+{%- for client in clients %}
+{%- if client.get("package") not in seen.packages %}
 
 @pytest.fixture(scope="session")
 def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package") }}.ApiClient:
