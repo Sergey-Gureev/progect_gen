@@ -23,8 +23,12 @@ structlog.configure(
     ]
 )
 options = (
-    {% for client in clients -%}
-    "service.{{ client.get("package")}}_{{ client.get("client") | underscore }}",
+    {% set seen = namespace(packages=[]) %}
+    {% for client in clients %}
+    {% if client.get("package") not in seen.packages %}
+    "service.{{ client.get("package") }}",
+    {% set seen.packages = seen.packages + [client.get("package")] %}
+    {% endif %}
     {% endfor %}
 )
 
@@ -57,7 +61,7 @@ def setup_swagger_coverage_{{ client.get("package")}}():
 
 @pytest.fixture(scope="session")
 def {{ client.get("package")}}_api_client(set_config) -> {{ client.get("package")}}.ApiClient:
-    configuration = {{ client.get("package")}}.Configuration(host=v.get('service.{{ client.get("package")}}_{{ client.get("client") | underscore }}'))
+    configuration = {{ client.get("package")}}.Configuration(host=v.get('service.{{ client.get("package") }}'))
     api_client = {{ client.get("package")}}.ApiClient(
         configuration=configuration,
         header_name="Authorization",
