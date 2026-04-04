@@ -15,57 +15,31 @@ def run_command(command: list[str]) -> str:
         sys.exit(1)
     return result.stdout.strip()
 
-def check_git_repository():
-    command = ["git", "rev-parse", "--is-inside-work-tree"]
-    is_work_tree = run_command(command)
-    if not is_work_tree:
-        print("Not in git repository")
-        sys.exit(1)
-
-def get_git_user_info() -> tuple[str, str]:
-    user_email = run_command(["git", "config", "--get", "user.email"])
-    user_name = run_command(["git", "config", "--get", "user.name"])
-    authors = f"{user_name or 'user_name'}, <{user_email or 'user_name@example.com'}>"
-    return user_email, authors
-
-def get_git_repository_info():
-    remote_url = run_command(["git", "config", "--get", "remote.origin.url"])
-    repository_name = remote_url.split('/')[-1].split('.git')[0]
-    return repository_name
-
-
 
 def create_project(template: str | None) -> None:
     template = template or str(pathlib.Path(__file__).parent.parent / "my_templates" / "project")
-    print("creating project")
-    check_git_repository()
-    user_email, authors = get_git_user_info()
-    project_name = get_git_repository_info()
+    project_name = Path.cwd().name
+    parent_dir = str(Path.cwd())
 
-    parent_dir = str(Path().cwd())
-    print("parent_dir", parent_dir)
-    extra_content = {
-        "user_email": user_email,
-        "authors": authors,
-        "project_name": project_name,
-        "repository": project_name
-    }
+    print(f"Creating project: {project_name}")
     cookiecutter(
-        template = template,
+        template=template,
         no_input=True,
         overwrite_if_exists=True,
         output_dir=parent_dir,
-        extra_context=extra_content
+        extra_context={
+            "project_name": project_name,
+            "repository_name": project_name,
+        }
     )
-    print("project created")
+    print("Project created.")
 
 
-
-def setup(template:str = None):
-    check_git_repository()
+def setup(template: str = None):
     create_project(template=template)
-    print("fill testproject.toml file")
-    print("run 'project_gen generate'")
+    print("Next steps:")
+    print("  1. Fill in testproject.toml with your API details")
+    print("  2. Run: project_gen generate")
 
 def generate_api(
         package_name: str,
