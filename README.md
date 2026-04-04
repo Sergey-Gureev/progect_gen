@@ -22,8 +22,6 @@ cd component_name_api_automation
 
 ```bash
 # Install gh if needed: https://cli.github.com
-# Personal account:
-gh repo create component_name_api_automation --private --clone
 
 # Organization (replace your-org with the actual org name):
 gh repo create your-org/component_name_api_automation --private --clone
@@ -67,13 +65,27 @@ This creates the folder structure and a `testproject.toml` config file.
 
 ```toml
 [[http]]
-service_name = "my_service"
+service_name = "component_name"
 swagger_url = "https://api.example.com/v1/docs/openapi.json"
 base_url = "https://api.example.com"
 relative_path_to_swagger = "/v1/docs/openapi.json"
 ```
 
-Add one `[[http]]` block per service.
+Add one `[[http]]` block per service. If one host exposes multiple swagger documents (e.g. `/swagger/Game/swagger.json`, `/swagger/Account/swagger.json`), treat each as a separate service:
+
+```toml
+[[http]]
+service_name = "game_service"
+swagger_url = "http://host/swagger/Game/swagger.json"
+base_url = "http://host"
+relative_path_to_swagger = "/swagger/Game/swagger.json"
+
+[[http]]
+service_name = "account_service"
+swagger_url = "http://host/swagger/Account/swagger.json"
+base_url = "http://host"
+relative_path_to_swagger = "/swagger/Account/swagger.json"
+```
 
 ### 5. Generate clients and tests
 
@@ -100,7 +112,13 @@ git commit -m "init: generated from swagger"
 
 ## Known issues
 
-In `models/json_any.py` you may need to add manually:
+### `models/json_any.py` — catch-all for complex dictionaries
+
+Some swagger specs generate a `models/json_any.py` that fails to deserialize complex nested objects.
+If you see deserialization errors at runtime, open `clients/http/<service_name>/models/json_any.py` and add:
+
 ```python
 "Dict[str, None]",  # catch-all for complex dictionaries
 ```
+
+This is a limitation of the openapi-generator Python template, not of project_gen itself.

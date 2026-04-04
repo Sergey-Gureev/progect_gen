@@ -40,17 +40,23 @@ class FixturesGenerator:
         self.env.filters["underscore"] = underscore
         self.env.filters["camelize"] = camelize
 
-    def generate(self, base_url, relative_path_to_swagger):
+    def generate(self, services: list[dict]):
+        """
+        services: list of dicts with keys: service_name, base_url, relative_path_to_swagger
+        """
+        service_map = {s["service_name"]: s for s in services}
+
+        for client in self.clients:
+            service = service_map.get(client["package"], {})
+            client["host"] = service.get("base_url", "")
+            client["relative_path_to_swagger"] = service.get("relative_path_to_swagger", "")
+
         fixture_template = self.env.get_template("fixtures.jinja2")
         stg_env_template = self.env.get_template("stg_env_template.jinja2")
-        for client in self.clients:
-            client['host'] = base_url
-            client['relative_path_to_swagger'] = relative_path_to_swagger
-        fixtures = fixture_template.render(clients=self.clients)
-        with open("clients/fixtures.py", "w", encoding="utf-8") as f:
-            f.write(fixtures)
 
-        fixtures = stg_env_template.render(clients=self.clients)
+        with open("clients/fixtures.py", "w", encoding="utf-8") as f:
+            f.write(fixture_template.render(clients=self.clients))
+
         with open("config/stg.yaml", "w", encoding="utf-8") as f:
-            f.write(fixtures)
+            f.write(stg_env_template.render(clients=self.clients))
 

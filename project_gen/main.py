@@ -21,6 +21,7 @@ def generate_command() -> None:
         print("No http services found in testproject.toml. Please fill it in.")
         return
 
+    services = []
     for http_service in config["http"]:
         package_name = http_service["service_name"]
         swagger_url = http_service["swagger_url"]
@@ -28,9 +29,14 @@ def generate_command() -> None:
         relative_path_to_swagger = http_service["relative_path_to_swagger"]
 
         generate_api(package_name=package_name, swagger_url=swagger_url)
-        FixturesGenerator().generate(base_url=base_url, relative_path_to_swagger=relative_path_to_swagger)
-        print("Done. Check/fill config/stg.yaml file.")
+        services.append({
+            "service_name": package_name,
+            "base_url": base_url,
+            "relative_path_to_swagger": relative_path_to_swagger,
+        })
 
+    FixturesGenerator().generate(services=services)
+    print("Done. Check/fill config/stg.yaml file.")
     TestsGenerator().generate()
 
 
