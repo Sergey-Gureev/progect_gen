@@ -6,6 +6,7 @@ CLI-tool for generating API test projects from OpenAPI/Swagger specs.
 
 - Python 3.10+
 - Java (for openapi-generator)
+- [Poetry](https://python-poetry.org/docs/#installation) — for managing test project dependencies
 
 ## Setup a new project
 
@@ -40,28 +41,34 @@ git clone https://github.com/your-org/component_name_api_automation.git
 cd component_name_api_automation
 ```
 
-### 1. Create and activate a virtual environment
+### 1. Install Poetry (if not installed)
+
+```bash
+pip install poetry
+```
+
+### 2. Create and activate a virtual environment
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 
-### 2. Install project_gen
+### 3. Install project_gen
 
 ```bash
 pip install git+https://github.com/Sergey-Gureev/progect_gen.git
 ```
 
-### 3. Generate project structure
+### 4. Generate project structure
 
 ```bash
 project_gen setup
 ```
 
-This creates the folder structure and a `testproject.toml` config file.
+This creates the folder structure, `testproject.toml`, and `pyproject.toml` with all test dependencies.
 
-### 4. Fill in testproject.toml
+### 5. Fill in testproject.toml
 
 ```toml
 [[http]]
@@ -87,7 +94,7 @@ base_url = "http://host"
 relative_path_to_swagger = "/swagger/Account/swagger.json"
 ```
 
-### 5. Install project dependencies
+### 6. Install project dependencies
 
 ```bash
 poetry install
@@ -95,7 +102,7 @@ poetry install
 
 This installs all dependencies from `pyproject.toml` into the venv.
 
-### 6. Generate clients and tests
+### 7. Generate clients and tests
 
 ```bash
 project_gen generate
@@ -107,7 +114,7 @@ This will:
 - Generate test stubs into `tests/`
 - Generate `config/stg.yaml` with environment config
 
-### 7. After generation
+### 8. After generation
 
 - Review and fill in `config/stg.yaml` with real environment values
 - Remove `@pytest.mark.skip` from tests you want to run
