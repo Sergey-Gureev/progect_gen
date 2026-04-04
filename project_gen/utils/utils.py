@@ -21,8 +21,14 @@ def create_project(template: str | None) -> None:
     project_name = Path.cwd().name
     parent_dir = str(Path.cwd())
 
-    toml_path = Path.cwd() / "testproject.toml"
-    saved_toml = toml_path.read_text() if toml_path.exists() else None
+    preserved = {
+        p: p.read_text()
+        for p in [
+            Path.cwd() / "testproject.toml",
+            Path.cwd() / "config" / "stg.yaml",
+        ]
+        if p.exists()
+    }
 
     print(f"Creating project: {project_name}")
     cookiecutter(
@@ -36,9 +42,9 @@ def create_project(template: str | None) -> None:
         }
     )
 
-    if saved_toml is not None:
-        toml_path.write_text(saved_toml)
-        print("Restored existing testproject.toml.")
+    for path, content in preserved.items():
+        path.write_text(content)
+        print(f"Restored existing {path.name}.")
 
     print("Project created.")
 
