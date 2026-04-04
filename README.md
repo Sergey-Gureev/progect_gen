@@ -87,7 +87,15 @@ base_url = "http://host"
 relative_path_to_swagger = "/swagger/Account/swagger.json"
 ```
 
-### 5. Generate clients and tests
+### 5. Install project dependencies
+
+```bash
+poetry install
+```
+
+This installs all dependencies from `pyproject.toml` into the venv.
+
+### 6. Generate clients and tests
 
 ```bash
 project_gen generate
@@ -99,7 +107,7 @@ This will:
 - Generate test stubs into `tests/`
 - Generate `config/stg.yaml` with environment config
 
-### 6. After generation
+### 7. After generation
 
 - Review and fill in `config/stg.yaml` with real environment values
 - Remove `@pytest.mark.skip` from tests you want to run
