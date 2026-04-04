@@ -21,6 +21,9 @@ def create_project(template: str | None) -> None:
     project_name = Path.cwd().name
     parent_dir = str(Path.cwd())
 
+    toml_path = Path.cwd() / "testproject.toml"
+    saved_toml = toml_path.read_text() if toml_path.exists() else None
+
     print(f"Creating project: {project_name}")
     cookiecutter(
         template=template,
@@ -32,6 +35,11 @@ def create_project(template: str | None) -> None:
             "repository_name": project_name,
         }
     )
+
+    if saved_toml is not None:
+        toml_path.write_text(saved_toml)
+        print("Restored existing testproject.toml.")
+
     print("Project created.")
 
 
