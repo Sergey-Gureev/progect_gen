@@ -1,48 +1,82 @@
 stages:
-    - testing
-    - reports
+  - test
+  - report
+
+variables:
+  ALLURE_RESULTS: results/allure
+  ALLURE_REPORT: reports/allure
+  ALLURE_HISTORY: allure-history
 
 run_tests:
-    stage: testing
-    tags:
+  stage: test
+  tags:
     - docker
-    image: python:3.10-slim
-    before_script:
-        - pip install --upgrade pip
-        - pip install poetry
-        - poetry install --no-root
-    script:
-        - poetry run pytest --alluredir=./allure-results tests
-    allow_failure: true
-    artifacts:
-        when: always
-        paths:
-            - ./allure-results
-        expire_in: 1 days
+  image: python:3.12-slim
+  before_script:
+    - pip install --upgrade pip --quiet
+    - pip install poetry --quiet
+    - poetry install --no-root --quiet
+  script:
+    - poetry run pytest tests/ --env=stg
+  allow_failure: true
+  artifacts:
+    when: always
+    paths:
+      - $ALLURE_RESULTS
+      - reports/coverage
+      - reports/specs
+    expire_in: 7 days
 
-allure:
-    stage: reports
-    tags:
-        - docker
-    image: frankescobar/allure-docker-service
-    script:
-        - allure generate -c ./allure-results -o allure-report
-    artifacts:
-        paths:
-            - allure-results
-            - allure-report
-        expire_in: 1 days
-    rules:
-        - when: always
+allure_report:
+  stage: report
+  tags:
+    - docker
+  image: frankescobar/allure-docker-service
+  script:
+    # Restore history from previous run to keep trends
+    - |
+      if [ -d "$ALLURE_HISTORY" ]; then
+        cp -r $ALLURE_HISTORY $ALLURE_RESULTS/history
+      fi
+    - allure generate $ALLURE_RESULTS -o $ALLURE_REPORT --clean
+  artifacts:
+    when: always
+    paths:
+      - $ALLURE_REPORT
+    expire_in: 30 days
+  needs:
+    - run_tests
+  rules:
+    - when: always
 
+# Save history for next run (download this artifact and pass as ALLURE_HISTORY)
+save_history:
+  stage: report
+  tags:
+    - docker
+  script:
+    - mkdir -p $ALLURE_HISTORY
+    - cp -r $ALLURE_REPORT/history/. $ALLURE_HISTORY/ || true
+  artifacts:
+    paths:
+      - $ALLURE_HISTORY
+    expire_in: 90 days
+  needs:
+    - allure_report
+  rules:
+    - when: always
+
+# Publish to GitLab Pages (optional — comment out if not needed)
 pages:
-    stage: reports
-    needs: ['allure']
-    script:
-        - mkdir public
-        - mv ./allure-report/* public
-    artifacts:
-        paths:
-            - public
-    rules:
-        - when: always
+  stage: report
+  needs:
+    - allure_report
+  script:
+    - mkdir -p public
+    - cp -r $ALLURE_REPORT/. public/
+  artifacts:
+    paths:
+      - public
+    expire_in: 30 days
+  rules:
+    - when: always

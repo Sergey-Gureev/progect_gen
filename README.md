@@ -57,7 +57,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ### 3. Install project_gen
 
 ```bash
-pip install git+https://github.com/Sergey-Gureev/progect_gen.git
+pip install git+https://github.com/Sergey-Gureev/progect_gen.git@claude_code
 ```
 
 ### 4. Generate project structure
