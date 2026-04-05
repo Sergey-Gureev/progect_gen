@@ -104,7 +104,7 @@ def setup_swagger_coverage_{{ client.get("package") }}():
 
 
 @pytest.fixture(scope="session")
-def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package") }}.ApiClient:
+async def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package") }}.ApiClient:
     host = v.get('service.{{ client.get("package") }}')
     host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
     output_dir = f"swagger-coverage-output/{host_part}-{{ client.get('package') }}"
