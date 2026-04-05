@@ -1,0 +1,33 @@
+import pytest
+import structlog
+from pathlib import Path
+from vyper import v
+
+structlog.configure(
+    processors=[
+        structlog.processors.JSONRenderer(indent=4, ensure_ascii=True, sort_keys=True)
+    ]
+)
+
+options = (
+{%- for package in packages %}
+    "service.{{ package }}",
+{%- endfor %}
+)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def set_config(request):
+    config = Path(__file__).parent.parent.joinpath("config")
+    config_name = request.config.getoption("--env")
+    v.set_config_name(config_name)
+    v.add_config_path(config)
+    v.read_in_config()
+    for option in options:
+        v.set(option, request.config.getoption(f"--{option}"))
+
+
+def pytest_addoption(parser):
+    parser.addoption("--env", action="store", default="stg", help="run stg")
+    for option in options:
+        parser.addoption(f"--{option}", action="store", default=None)

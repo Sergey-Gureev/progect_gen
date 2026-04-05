@@ -6,7 +6,7 @@ from clients.http.{{ package }}.models import *  # noqa: F401
 
 
 @pytest.mark.skip
-async def test_{{ method_name }}({{package | underscore}}_{{client_name | underscore }}: {{package | underscore}}.{{client_name}}) -> None:
+async def test_{{ description_name or method_name }}({{package | underscore}}_{{client_name | underscore }}: {{package | underscore}}.{{client_name}}) -> None:
     {% for param_name, param_type in parameters -%}
     {% if param_name != 'self' and not param_name.startswith('_') -%}
     {{ param_name }}: {{ param_type }} ={% if param_type.startswith('Optional') %} None {% else %} ... {% endif %}
