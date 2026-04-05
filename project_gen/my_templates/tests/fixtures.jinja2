@@ -161,9 +161,8 @@ def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package
     original_request = rest_client.request.__func__
 
     async def patched_request(self, *args, **kwargs):
-        if self.pool_manager is None:
+        if self.pool_manager is None or self.pool_manager.closed:
             self.pool_manager = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(limit=self.maxsize, ssl=self.ssl_context),
                 trust_env=True,
                 trace_configs=[trace],
             )
