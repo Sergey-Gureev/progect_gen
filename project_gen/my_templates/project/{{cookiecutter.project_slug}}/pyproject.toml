@@ -42,7 +42,7 @@ addopts = """
     --alluredir=./allure-results
 """
 #    --telegram-notifier
-#    --telegram-notifier-config-file=../telegram-notifier-config.ini
+#    --telegram-notifier-config-file=config/telegram-notifier-config.ini
 
 [tool.poetry.group.lint.dependencies]
 ruff = "^0.12.2"

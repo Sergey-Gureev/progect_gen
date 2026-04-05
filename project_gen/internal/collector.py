@@ -108,10 +108,12 @@ class FixturesGenerator:
             f.write(conftest)
 
     def _generate_coverage_configs(self, services: list[dict]) -> None:
-        existing = list(Path(".").glob("swagger-coverage-config-*.json"))
-        config_content = existing[0].read_text() if existing else self._default_coverage_config()
+        config_dir = Path("config")
+        # Use existing template config if present, else default
+        template = config_dir / "swagger-coverage-config.json"
+        config_content = template.read_text() if template.exists() else self._default_coverage_config()
         for service in services:
-            config_path = Path(f"swagger-coverage-config-{service['service_name']}.json")
+            config_path = config_dir / f"swagger-coverage-config-{service['service_name']}.json"
             if not config_path.exists():
                 config_path.write_text(config_content)
 

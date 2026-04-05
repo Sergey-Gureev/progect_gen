@@ -13,6 +13,8 @@ from vyper import v
 def setup_swagger_coverage_{{ package }}():
     reporter = CoverageReporter(api_name='{{ package }}', host='{{ host }}')
     reporter.setup(path_to_swagger_json='{{ relative_path_to_swagger }}')
+    config_path = Path(f"config/swagger-coverage-config-{{ package }}.json")
+    reporter.swagger_coverage_config = str(config_path) if config_path.exists() else None
     Path("reports/swagger").mkdir(parents=True, exist_ok=True)
     swagger_file = Path(reporter.swagger_doc_file)
     target = Path("reports/swagger") / swagger_file.name
