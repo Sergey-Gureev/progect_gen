@@ -39,7 +39,7 @@ class FixturesGenerator:
 
     def __init__(self):
         self.clients = ClientCollector().collect_clients()
-        self.templates_dir = Path(__file__).parent.parent / "my_templates" / "tests"
+        self.templates_dir = Path(__file__).parent.parent / "templates" / "fixtures"
         self.env = Environment(loader=FileSystemLoader(self.templates_dir), autoescape=True)
         self.env.filters["underscore"] = underscore
         self.env.filters["camelize"] = camelize

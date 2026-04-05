@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 from jinja2 import Environment, FileSystemLoader
 
-from project_gen.internal.collector import ClientCollector, underscore, camelize
+from project_gen.generate.fixture_generator import ClientCollector, underscore, camelize
 
 
 def _description_to_name(text: str) -> Optional[str]:
@@ -31,7 +31,7 @@ class TestsGenerator:
     def __init__(self):
         self.output_dir = Path("tests")
         self.clients_path = Path("clients") / "http"
-        self.templates_dir = Path(__file__).parent.parent / "my_templates" / "tests"
+        self.templates_dir = Path(__file__).parent.parent / "templates" / "fixtures"
         self.env = Environment(
             loader=FileSystemLoader(self.templates_dir), autoescape=True
         )

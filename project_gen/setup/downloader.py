@@ -1,17 +1,19 @@
 import os
 import platform
 import shutil
-import requests
 from pathlib import Path
 
+import requests
+
 OPENAPI_GENERATOR = "openapi-generator-cli-7.17.0.jar"
-def download_codegen() -> None:
+
+
+def download_openapi_generator() -> None:
     url = (
         "https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/"
         "7.17.0/openapi-generator-cli-7.17.0.jar"
     )
-    file_name = OPENAPI_GENERATOR
-    local_path = Path.cwd() / file_name  # absolute path for clarity
+    local_path = Path.cwd() / OPENAPI_GENERATOR
 
     print(f"📂 Current working dir: {Path.cwd()}")
     print(f"⬇️ Downloading to: {local_path}")
@@ -25,19 +27,16 @@ def download_codegen() -> None:
     if platform.system() != "Windows":
         os.chmod(local_path, 0o755)
 
-    # Correct venv bin path
-    venv_bin = Path(".venv") / ("Scripts" if platform.system() == "Windows" else "bin")
-    venv_bin = Path.cwd() / venv_bin  # make it absolute
+    venv_bin = Path.cwd() / ".venv" / ("Scripts" if platform.system() == "Windows" else "bin")
     venv_bin.mkdir(parents=True, exist_ok=True)
 
-    destination = venv_bin / file_name
+    destination = venv_bin / OPENAPI_GENERATOR
     print(f"📦 Moving {local_path} → {destination}")
     shutil.move(str(local_path), str(destination))
-
     print(f"✅ Done! File now at: {destination}")
-    print(f"Exists? {destination.exists()}")
 
-def init()-> None:
-    if not os.path.exists(f".venv/bin/{OPENAPI_GENERATOR}"):
-        download_codegen()
+
+def ensure_openapi_generator() -> None:
+    if not Path(f".venv/bin/{OPENAPI_GENERATOR}").exists():
+        download_openapi_generator()
     print(f"Downloaded {OPENAPI_GENERATOR}")
