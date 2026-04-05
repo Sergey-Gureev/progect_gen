@@ -6,6 +6,7 @@ from pathlib import Path
 import requests
 
 OPENAPI_GENERATOR = "openapi-generator-cli-7.17.0.jar"
+JAR_DIR = Path(".bin")
 
 
 def download_openapi_generator() -> None:
@@ -27,16 +28,16 @@ def download_openapi_generator() -> None:
     if platform.system() != "Windows":
         os.chmod(local_path, 0o755)
 
-    venv_bin = Path.cwd() / ".venv" / ("Scripts" if platform.system() == "Windows" else "bin")
-    venv_bin.mkdir(parents=True, exist_ok=True)
+    jar_dir = Path.cwd() / JAR_DIR
+    jar_dir.mkdir(parents=True, exist_ok=True)
 
-    destination = venv_bin / OPENAPI_GENERATOR
+    destination = jar_dir / OPENAPI_GENERATOR
     print(f"📦 Moving {local_path} → {destination}")
     shutil.move(str(local_path), str(destination))
     print(f"✅ Done! File now at: {destination}")
 
 
 def ensure_openapi_generator() -> None:
-    if not Path(f".venv/bin/{OPENAPI_GENERATOR}").exists():
+    if not (Path.cwd() / JAR_DIR / OPENAPI_GENERATOR).exists():
         download_openapi_generator()
     print(f"Downloaded {OPENAPI_GENERATOR}")
