@@ -62,28 +62,30 @@ class FixturesGenerator:
         self._generate_coverage_configs(services)
 
     def _write_config_fixture(self, services: list[dict]) -> None:
-        packages = list(dict.fromkeys(c["package"] for c in self.clients))
+        service_names = list(dict.fromkeys(c["package"] for c in self.clients))
         template = self.env.get_template("fixtures_config.jinja2")
         with open("fixtures/config.py", "w", encoding="utf-8") as f:
-            f.write(template.render(packages=packages))
+            f.write(template.render(packages=service_names))
 
     def _write_service_fixtures(self, services: list[dict]) -> None:
         template = self.env.get_template("fixtures_service.jinja2")
         for service in services:
-            pkg = service["service_name"]
-            pkg_clients = [c for c in self.clients if c["package"] == pkg]
-            with open(f"fixtures/{pkg}.py", "w", encoding="utf-8") as f:
-                f.write(template.render(
-                    package=pkg,
-                    host=service["base_url"],
-                    relative_path_to_swagger=service["relative_path_to_swagger"],
-                    clients=pkg_clients,
-                ))
+            service_name = service["service_name"]
+            fixture_path = Path(f"fixtures/{service_name}.py")
+            if fixture_path.exists():
+                continue  # preserve user edits (api keys, custom auth, etc.)
+            service_clients = [c for c in self.clients if c["package"] == service_name]
+            fixture_path.write_text(template.render(
+                package=service_name,
+                host=service["base_url"],
+                relative_path_to_swagger=service["relative_path_to_swagger"],
+                clients=service_clients,
+            ))
 
     def _update_conftest(self, services: list[dict]) -> None:
-        packages = [s["service_name"] for s in services]
+        service_names = [s["service_name"] for s in services]
         plugin_lines = '    "fixtures.config",\n' + "".join(
-            f'    "fixtures.{pkg}",\n' for pkg in packages
+            f'    "fixtures.{name}",\n' for name in service_names
         )
         conftest = (
             "import os\n"
@@ -128,17 +130,18 @@ class FixturesGenerator:
     def _generate_coverage_configs(self, services: list[dict]) -> None:
         import json
         config_dir = Path("config")
-        template = config_dir / "swagger-coverage-config.json"
-        base = json.loads(template.read_text()) if template.exists() else json.loads(self._default_coverage_config())
+        template_config = config_dir / "swagger-coverage-config.json"
+        base = json.loads(template_config.read_text()) if template_config.exists() else json.loads(self._default_coverage_config())
         Path("reports/coverage").mkdir(parents=True, exist_ok=True)
         for service in services:
-            config_path = config_dir / f"swagger-coverage-config-{service['service_name']}.json"
+            service_name = service["service_name"]
+            config_path = config_dir / f"swagger-coverage-config-{service_name}.json"
             if not config_path.exists():
-                cfg = json.loads(json.dumps(base))  # deep copy
-                cfg["writers"]["html"]["filename"] = (
-                    f"reports/coverage/swagger-coverage-report-{service['service_name']}.html"
+                service_config = json.loads(json.dumps(base))  # deep copy
+                service_config["writers"]["html"]["filename"] = (
+                    f"reports/coverage/swagger-coverage-report-{service_name}.html"
                 )
-                config_path.write_text(json.dumps(cfg, indent=4))
+                config_path.write_text(json.dumps(service_config, indent=4))
 
     @staticmethod
     def _default_coverage_config() -> str:
