@@ -148,7 +148,7 @@ def setup_swagger_coverage_{{ client.get("package") }}():
 def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package") }}.ApiClient:
     host = v.get('service.{{ client.get("package") }}')
     host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
-    output_dir = f"swagger-coverage-output/{host_part}-{{ client.get('package') }}"
+    output_dir = f"results/swagger-coverage/{host_part}-{{ client.get('package') }}"
     trace = _coverage_trace(host, output_dir, '{{ client.get("package") }}')
 
     configuration = {{ client.get("package") }}.Configuration(host=host)

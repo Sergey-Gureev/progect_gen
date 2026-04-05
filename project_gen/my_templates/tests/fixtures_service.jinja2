@@ -10,11 +10,18 @@ from vyper import v
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_swagger_coverage_{{ package }}():
-    reporter = CoverageReporter(api_name='{{ package }}', host='{{ host }}')
+def setup_swagger_coverage_{{ package }}(set_config):
+    host = v.get('service.{{ package }}')
+    host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
+
+    reporter = CoverageReporter(api_name='{{ package }}', host=host)
+    # Override internal output_dir to use results/ folder
+    reporter.output_dir = f"results/swagger-coverage/{host_part}-{{ package }}"
     reporter.setup(path_to_swagger_json='{{ relative_path_to_swagger }}')
+
     config_path = Path(f"config/swagger-coverage-config-{{ package }}.json")
     reporter.swagger_coverage_config = str(config_path) if config_path.exists() else None
+
     Path("reports/specs").mkdir(parents=True, exist_ok=True)
     swagger_file = Path(reporter.swagger_doc_file)
     target = Path("reports/specs") / swagger_file.name
@@ -30,7 +37,7 @@ def setup_swagger_coverage_{{ package }}():
 def {{ package }}_api_client(set_config) -> {{ package }}.ApiClient:
     host = v.get('service.{{ package }}')
     host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
-    output_dir = f"swagger-coverage-output/{host_part}-{{ package }}"
+    output_dir = f"results/swagger-coverage/{host_part}-{{ package }}"
     trace = _coverage_trace(host, output_dir, '{{ package }}')
 
     configuration = {{ package }}.Configuration(host=host)
