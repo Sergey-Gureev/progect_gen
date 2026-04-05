@@ -40,32 +40,35 @@ def _coverage_trace(host: str, output_dir: str) -> aiohttp.TraceConfig:
     trace = aiohttp.TraceConfig()
 
     async def on_request_end(session, ctx, params):
-        url = str(params.url)
-        method = params.method.lower()
-        response = params.response
-        path = re.sub(f"^{re.escape(host.rstrip('/'))}", "", url.split("?")[0]) or "/"
-        scheme = re.match(r"(\w+)://", host).group(1)
+        try:
+            url = str(params.url)
+            method = params.method.lower()
+            response = params.response
+            path = re.sub(f"^{re.escape(host.rstrip('/'))}", "", url.split("?")[0]) or "/"
+            scheme = re.match(r"(\w+)://", host).group(1)
 
-        schema = {
-            "swagger": "2.0",
-            "host": host,
-            "schemes": [scheme],
-            "consumes": [params.headers.get("content-type", "application/json")],
-            "produces": [response.headers.get("content-type", "application/json")],
-            "paths": {
-                path: {
-                    method: {
-                        "parameters": [],
-                        "responses": {response.status: {}}
+            schema = {
+                "swagger": "2.0",
+                "host": host,
+                "schemes": [scheme],
+                "consumes": [params.headers.get("content-type", "application/json")],
+                "produces": [response.headers.get("content-type", "application/json")],
+                "paths": {
+                    path: {
+                        method: {
+                            "parameters": [],
+                            "responses": {response.status: {}}
+                        }
                     }
                 }
             }
-        }
-        os.makedirs(output_dir, exist_ok=True)
-        rnd = Faker().pystr(min_chars=5, max_chars=5)
-        file_name = f"{method.upper()} {path[1:]} ({rnd}).json".replace("/", "-").replace(":", "_")
-        with open(f"{output_dir}/{file_name}", "w") as f:
-            json.dump(schema, f, indent=4)
+            os.makedirs(output_dir, exist_ok=True)
+            rnd = Faker().pystr(min_chars=5, max_chars=5)
+            file_name = f"{method.upper()} {path[1:]} ({rnd}).json".replace("/", "-").replace(":", "_")
+            with open(f"{output_dir}/{file_name}", "w") as f:
+                json.dump(schema, f, indent=4)
+        except Exception as e:
+            print(f"[coverage trace error] {e}")
 
     trace.on_request_end.append(on_request_end)
     return trace
