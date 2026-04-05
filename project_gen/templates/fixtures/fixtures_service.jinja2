@@ -34,7 +34,7 @@ def setup_swagger_coverage_{{ package }}(set_config):
 
 
 @pytest.fixture(scope="session")
-def {{ package }}_api_client(set_config) -> {{ package }}.ApiClient:
+async def {{ package }}_api_client(set_config) -> {{ package }}.ApiClient:
     host = v.get('service.{{ package }}')
     host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
     output_dir = f"results/swagger-coverage/{host_part}-{{ package }}"
@@ -59,7 +59,8 @@ def {{ package }}_api_client(set_config) -> {{ package }}.ApiClient:
         return await original_request(self, *args, **kwargs)
 
     rest_client.request = types.MethodType(patched_request, rest_client)
-    return api_client
+    yield api_client
+    await rest_client.close()
 
 {% for client in clients %}
 @pytest.fixture(scope="session")
