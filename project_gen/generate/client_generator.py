@@ -15,7 +15,7 @@ def run_command(command: list[str]) -> str:
 
 
 def generate_client(package_name: str, swagger_url: str, templates: str | None = None) -> None:
-    templates = templates or str(pathlib.Path(__file__).parent.parent / "templates" / "openapi")
+    templates = templates or str(pathlib.Path(__file__).parent.parent / "templates" / "python")
     command = [
         "java", "-jar", ".venv/bin/openapi-generator-cli-7.17.0.jar",
         "generate", "-i", swagger_url,
