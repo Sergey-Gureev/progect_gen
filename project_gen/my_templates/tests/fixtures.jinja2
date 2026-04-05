@@ -50,7 +50,7 @@ def _coverage_trace(host: str, output_dir: str) -> aiohttp.TraceConfig:
             "swagger": "2.0",
             "host": host,
             "schemes": [scheme],
-            "consumes": [response.request_info.headers.get("content-type", "application/json")],
+            "consumes": [params.headers.get("content-type", "application/json")],
             "produces": [response.headers.get("content-type", "application/json")],
             "paths": {
                 path: {
