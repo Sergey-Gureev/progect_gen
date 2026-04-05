@@ -150,7 +150,7 @@ class FixturesGenerator:
             "\n"
             "def _detect_spec_version(api_name: str) -> str:\n"
             '    """Detect OpenAPI version from the downloaded swagger file."""\n'
-            "    for base in [Path(\"reports/swagger\"), Path(\".\")]:\n"
+            "    for base in [Path(\"reports/specs\"), Path(\".\")]:\n"
             "        swagger_file = base / f\"swagger-{api_name}.json\"\n"
             "        if swagger_file.exists():\n"
             "            try:\n"
