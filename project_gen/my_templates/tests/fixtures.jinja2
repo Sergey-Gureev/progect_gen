@@ -143,10 +143,11 @@ def setup_swagger_coverage_{{ client.get("package") }}():
 
 
 @pytest.fixture(scope="session")
-async def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package") }}.ApiClient:
+def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("package") }}.ApiClient:
     host = v.get('service.{{ client.get("package") }}')
     host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
     output_dir = f"swagger-coverage-output/{host_part}-{{ client.get('package') }}"
+    trace = _coverage_trace(host, output_dir, '{{ client.get("package") }}')
 
     configuration = {{ client.get("package") }}.Configuration(host=host)
     api_client = {{ client.get("package") }}.ApiClient(
@@ -154,10 +155,22 @@ async def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("p
         header_name="Authorization",
         header_value="api_key"
     )
-    api_client.rest_client.pool_manager = aiohttp.ClientSession(
-        trust_env=True,
-        trace_configs=[_coverage_trace(host, output_dir, '{{ client.get("package") }}')]
-    )
+
+    # Patch pool_manager creation to inject trace_configs
+    rest_client = api_client.rest_client
+    original_request = rest_client.request.__func__
+
+    async def patched_request(self, *args, **kwargs):
+        if self.pool_manager is None:
+            self.pool_manager = aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(limit=self.maxsize, ssl=self.ssl_context),
+                trust_env=True,
+                trace_configs=[trace],
+            )
+        return await original_request(self, *args, **kwargs)
+
+    import types
+    rest_client.request = types.MethodType(patched_request, rest_client)
     return api_client
 
 {%- set seen.packages = seen.packages + [client.get("package")] %}
