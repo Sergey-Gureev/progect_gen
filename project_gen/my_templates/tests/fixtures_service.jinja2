@@ -23,11 +23,6 @@ def setup_swagger_coverage_{{ package }}():
         reporter.swagger_doc_file = str(target)
     yield
     reporter.generate_report()
-    Path("reports/coverage").mkdir(parents=True, exist_ok=True)
-    if Path("swagger-coverage-report.html").exists():
-        Path("swagger-coverage-report.html").rename(
-            "reports/coverage/swagger-coverage-report-{{ package }}.html"
-        )
     reporter.cleanup_input_files()
 
 
