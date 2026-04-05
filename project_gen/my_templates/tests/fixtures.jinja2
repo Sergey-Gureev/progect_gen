@@ -35,7 +35,56 @@ options = (
 )
 
 
-def _coverage_trace(host: str, output_dir: str) -> aiohttp.TraceConfig:
+def _detect_spec_version(api_name: str) -> str:
+    """Detect OpenAPI version from the downloaded swagger file."""
+    swagger_file = Path(f"swagger-{api_name}.json")
+    if swagger_file.exists():
+        try:
+            spec = json.loads(swagger_file.read_text())
+            if "openapi" in spec:
+                return spec["openapi"]  # e.g. "3.0.1"
+            if "swagger" in spec:
+                return spec["swagger"]  # e.g. "2.0"
+        except Exception:
+            pass
+    return "2.0"
+
+
+def _build_coverage_schema(host: str, path: str, method: str, status: int, version: str, params) -> dict:
+    """Build a coverage schema dict in the correct format for the detected spec version."""
+    if version.startswith("3"):
+        return {
+            "openapi": version,
+            "info": {"title": host, "version": "1.0.0"},
+            "paths": {
+                path: {
+                    method: {
+                        "parameters": [],
+                        "responses": {str(status): {"description": str(status)}}
+                    }
+                }
+            }
+        }
+    else:
+        scheme = re.match(r"(\w+)://", host).group(1)
+        return {
+            "swagger": "2.0",
+            "host": host,
+            "schemes": [scheme],
+            "consumes": [params.headers.get("content-type", "application/json")],
+            "produces": [params.response.headers.get("content-type", "application/json")],
+            "paths": {
+                path: {
+                    method: {
+                        "parameters": [],
+                        "responses": {status: {}}
+                    }
+                }
+            }
+        }
+
+
+def _coverage_trace(host: str, output_dir: str, api_name: str) -> aiohttp.TraceConfig:
     """aiohttp TraceConfig that writes swagger-coverage files for each request."""
     trace = aiohttp.TraceConfig()
 
@@ -45,23 +94,10 @@ def _coverage_trace(host: str, output_dir: str) -> aiohttp.TraceConfig:
             method = params.method.lower()
             response = params.response
             path = re.sub(f"^{re.escape(host.rstrip('/'))}", "", url.split("?")[0]) or "/"
-            scheme = re.match(r"(\w+)://", host).group(1)
 
-            schema = {
-                "swagger": "2.0",
-                "host": host,
-                "schemes": [scheme],
-                "consumes": [params.headers.get("content-type", "application/json")],
-                "produces": [response.headers.get("content-type", "application/json")],
-                "paths": {
-                    path: {
-                        method: {
-                            "parameters": [],
-                            "responses": {response.status: {}}
-                        }
-                    }
-                }
-            }
+            version = _detect_spec_version(api_name)
+            schema = _build_coverage_schema(host, path, method, response.status, version, params)
+
             os.makedirs(output_dir, exist_ok=True)
             rnd = Faker().pystr(min_chars=5, max_chars=5)
             file_name = f"{method.upper()} {path[1:]} ({rnd}).json".replace("/", "-").replace(":", "_")
@@ -119,9 +155,8 @@ async def {{ client.get("package") }}_api_client(set_config) -> {{ client.get("p
         header_value="api_key"
     )
     api_client.rest_client.pool_manager = aiohttp.ClientSession(
-        connector=aiohttp.TCPConnector(ssl=False),
         trust_env=True,
-        trace_configs=[_coverage_trace(host, output_dir)]
+        trace_configs=[_coverage_trace(host, output_dir, '{{ client.get("package") }}')]
     )
     return api_client
 
