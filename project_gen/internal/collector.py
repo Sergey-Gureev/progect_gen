@@ -57,9 +57,7 @@ class FixturesGenerator:
         self._write_service_fixtures(services)
         self._update_conftest(services)
 
-        stg_env_template = self.env.get_template("stg_env_template.jinja2")
-        with open("config/stg.yaml", "w", encoding="utf-8") as f:
-            f.write(stg_env_template.render(clients=self.clients))
+        self._update_stg_yaml(services)
 
         self._generate_coverage_configs(services)
 
@@ -106,6 +104,26 @@ class FixturesGenerator:
         )
         with open("tests/conftest.py", "w", encoding="utf-8") as f:
             f.write(conftest)
+
+    def _update_stg_yaml(self, services: list[dict]) -> None:
+        """Merge new services into stg.yaml, preserving existing values."""
+        import re
+        stg_path = Path("config/stg.yaml")
+        existing: dict = {}
+        if stg_path.exists():
+            content = stg_path.read_text()
+            # parse simple "  key: value" lines under "service:"
+            for m in re.finditer(r'^\s{2}(\w+):\s*"?([^"\n]*)"?', content, re.MULTILINE):
+                existing[m.group(1)] = m.group(2).strip()
+
+        lines = ["service:\n"]
+        for service in services:
+            pkg = service["service_name"]
+            # keep existing value if already set and non-empty, else use base_url from toml
+            value = existing.get(pkg) or service["base_url"]
+            lines.append(f'\n  {pkg}: "{value}"')
+
+        stg_path.write_text("".join(lines) + "\n")
 
     def _generate_coverage_configs(self, services: list[dict]) -> None:
         import json
