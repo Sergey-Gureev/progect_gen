@@ -1,4 +1,6 @@
+import os
 import re
+import subprocess
 import types
 import pytest
 import aiohttp
@@ -7,6 +9,30 @@ import clients.http.{{ package }} as {{ package }}
 from fixtures._coverage import _coverage_trace
 from swagger_coverage_py.reporter import CoverageReporter
 from vyper import v
+
+
+def _generate_report_silent(reporter: CoverageReporter) -> None:
+    """Run swagger-coverage report generation with suppressed output."""
+    import platform
+    inner_location = 'swagger-coverage-commandline/bin/swagger-coverage-commandline'
+    cmd_path = os.path.join(os.path.dirname(reporter.__class__.__module__.replace('.', '/') + '.py'), inner_location)
+    # resolve path relative to the package
+    import swagger_coverage_py
+    cmd_path = os.path.join(os.path.dirname(swagger_coverage_py.__file__), inner_location)
+
+    if not Path(cmd_path).exists():
+        return
+
+    if reporter.swagger_coverage_config:
+        command = f"{cmd_path} -s {reporter.swagger_doc_file} -i {reporter.output_dir} -c {reporter.swagger_coverage_config}"
+    else:
+        command = f"{cmd_path} -s {reporter.swagger_doc_file} -i {reporter.output_dir}"
+
+    if platform.system() == "Windows":
+        command = command.replace("/", "\\")
+
+    if reporter.is_any_files():
+        subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -29,7 +55,7 @@ def setup_swagger_coverage_{{ package }}(set_config):
         swagger_file.rename(target)
         reporter.swagger_doc_file = str(target)
     yield
-    reporter.generate_report()
+    _generate_report_silent(reporter)
     reporter.cleanup_input_files()
 
 
