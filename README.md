@@ -132,10 +132,10 @@ git commit -m "init: generated from swagger"
 pytest tests/
 
 # Run tests for a specific service
-pytest tests/cyco_app/
+pytest tests/game_app/
 
 # Run a single test
-pytest tests/cyco_app/http/users_api/v1_users_get/test_v1_users_get.py
+pytest tests/game_app/http/users_api/v1_users_get/test_v1_users_get.py
 ```
 
 ## Allure reports
@@ -160,7 +160,7 @@ allure generate allure-results -o allure-report --clean
 allure open allure-report
 ```
 
-## Known issues
+##  Possible issues
 
 ### `models/json_any.py` — catch-all for complex dictionaries
 
@@ -170,5 +170,5 @@ If you see deserialization errors at runtime, open `clients/http/<service_name>/
 ```python
 "Dict[str, None]",  # catch-all for complex dictionaries
 ```
-
 This is a limitation of the openapi-generator Python template, not of project_gen itself.
+or might be a specific Swagger bug -> talk with team
