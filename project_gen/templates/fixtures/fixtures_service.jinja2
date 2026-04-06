@@ -55,6 +55,7 @@ def setup_swagger_coverage_{{ package }}(set_config):
         swagger_file.rename(target)
         reporter.swagger_doc_file = str(target)
     yield
+    # reporter.generate_report()  # replaced: verbose Java output pollutes test logs
     _generate_report_silent(reporter)
     reporter.cleanup_input_files()
 
