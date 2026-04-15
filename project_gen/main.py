@@ -6,7 +6,6 @@ from project_gen.generate.test_generator import TestsGenerator
 from project_gen.generate.client_generator import generate_client
 from project_gen.setup.downloader import ensure_openapi_generator
 from project_gen.setup.project_setup import create_project
-from project_gen.heal.healer import TestHealer
 
 
 @click.group()
@@ -47,19 +46,8 @@ def generate_command() -> None:
     TestsGenerator().generate()
 
 
-@click.command("heal")
-@click.option("--service", "-s", default=None, help="Heal only a specific service")
-@click.option("--api-key", "-k", default=None, help="Anthropic API key (or set ANTHROPIC_API_KEY)")
-def heal_command(service, api_key) -> None:
-    """Auto-fill skipped tests using Claude + real API responses."""
-    from pathlib import Path
-    healer = TestHealer(project_dir=Path.cwd(), api_key=api_key)
-    healer.heal_all(service_filter=service)
-
-
 cli.add_command(setup_command)
 cli.add_command(generate_command)
-cli.add_command(heal_command)
 
 
 if __name__ == "__main__":
