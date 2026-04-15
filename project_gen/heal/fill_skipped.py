@@ -83,17 +83,23 @@ def _process_test(
 
     print(f"     {endpoint['method']} {endpoint['path']} — {endpoint['summary']}")
 
-    # Resolve parameter values
+    method = endpoint["method"].upper()
+
+    # DELETE — skip always (destructive, needs real data)
+    if method == "DELETE":
+        print(f"     ⏭  DELETE — destructive, fill manually")
+        return
+
+    # Resolve path/query parameter values from spec enums
     param_values, missing = _resolve_params(test.params, endpoint)
     if missing:
-        print(f"     ⚠️  Cannot fill required params without enum: {missing}")
-        print(f"     ⚠️  Skipping — fill these manually in the test")
+        print(f"     ⏭  Needs real values for: {missing} — fill manually")
         return
 
     # Make real request
     print(f"     📡 Requesting with params: {param_values}")
     try:
-        response_data = asyncio.run(
+        response_data, skip_reason = asyncio.run(
             _real_request(base_url, endpoint, param_values, headers)
         )
     except Exception as e:
@@ -101,7 +107,7 @@ def _process_test(
         return
 
     if response_data is None:
-        print(f"     ⚠️  Got empty or error response, skipping")
+        print(f"     ⏭  {skip_reason}")
         return
 
     print(f"     ✅ Got response ({_describe_response(response_data)})")
@@ -160,46 +166,140 @@ async def _real_request(
     endpoint: dict,
     param_values: dict,
     headers: dict,
-) -> dict | list | None:
+) -> tuple[dict | list | None, str]:
+    """
+    Make a real HTTP request. Returns (response_data, skip_reason).
+    skip_reason is non-empty when response_data is None.
+    """
     method = endpoint["method"].upper()
     path = endpoint["path"]
 
     # Fill path params: /v1/assets/{asset_type} → /v1/assets/ip
     for name, value in param_values.items():
         path = path.replace(f"{{{name}}}", str(value))
-        # also try kebab-case key in path
         path = path.replace(f"{{{name.replace('_', '-')}}}", str(value))
 
     url = base_url.rstrip("/") + path
 
-    # Remaining values go to query params (for GET/POST query style)
+    # Remaining values become query params
     query_params = {
         k: v for k, v in param_values.items()
         if f"{{{k}}}" not in endpoint["path"]
+        and f"{{{k.replace('_', '-')}}}" not in endpoint["path"]
     }
 
     timeout = aiohttp.ClientTimeout(total=15)
     all_headers = {"Content-Type": "application/json", **headers}
+
     async with aiohttp.ClientSession(headers=all_headers, timeout=timeout) as session:
         req_kwargs: dict = {"ssl": False}
         if query_params:
             req_kwargs["params"] = query_params
-
-        # POST/PUT/PATCH always need a JSON body (empty if no schema defined)
         if method in ("POST", "PUT", "PATCH"):
             req_kwargs["json"] = {}
 
         async with session.request(method, url, **req_kwargs) as resp:
+            # Success
             if resp.status in (200, 201):
                 try:
-                    return await resp.json(content_type=None)
+                    return await resp.json(content_type=None), ""
                 except Exception:
                     text = await resp.text()
-                    return {"_raw_text": text}
-            else:
-                text = await resp.text()
-                print(f"     ⚠️  HTTP {resp.status}: {text[:200]}")
-                return None
+                    return {"_raw_text": text}, ""
+
+            # 403 — auth/permissions issue, user must fix
+            if resp.status == 403:
+                return None, "HTTP 403 Forbidden — check auth token or permissions"
+
+            # 404 — needs a real existing resource ID
+            if resp.status == 404:
+                return None, "HTTP 404 — endpoint needs a real resource ID, fill manually"
+
+            # 400 for POST/PUT/PATCH — try to diagnose and retry
+            if resp.status == 400 and method in ("POST", "PUT", "PATCH"):
+                try:
+                    error_body = await resp.json(content_type=None)
+                except Exception:
+                    return None, "HTTP 400 — could not parse error body"
+
+                retry_body = _diagnose_400(error_body, endpoint.get("request_body"))
+                if retry_body is None:
+                    return None, f"HTTP 400 — cannot auto-fix: {str(error_body)[:150]}"
+
+                print(f"     🔄 Retrying with body: {str(retry_body)[:80]}")
+                req_kwargs["json"] = retry_body
+                async with session.request(method, url, **req_kwargs) as retry_resp:
+                    if retry_resp.status in (200, 201):
+                        return await retry_resp.json(content_type=None), ""
+                    retry_error = await retry_resp.json(content_type=None)
+                    # Extract what fields are still needed
+                    missing = list(retry_error.get("explanation", {}).keys()) if isinstance(retry_error.get("explanation"), dict) else []
+                    hint = f"Required fields: {missing}" if missing else str(retry_error)[:150]
+                    return None, f"HTTP {retry_resp.status} after retry — {hint} — fill manually"
+
+            text = await resp.text()
+            return None, f"HTTP {resp.status}: {text[:150]}"
+
+
+# ── 400 diagnosis ────────────────────────────────────────────────────────────
+
+def _diagnose_400(error_body: dict, schema: dict | None) -> dict | list | None:
+    """
+    Analyse a 400 response and build a minimal retry body.
+
+    Two cases the API tells us about:
+    - {"explanation": {"field": ["missing required key"]}} → build object with those fields
+    - {"explanation": ["invalid type"]}                   → body should be a list, retry with []
+    """
+    explanation = error_body.get("explanation")
+    if not explanation:
+        return None
+
+    # Case 1: body must be a list
+    if isinstance(explanation, list):
+        if any("invalid type" in str(e) for e in explanation):
+            return []
+        return None
+
+    # Case 2: missing required fields → build minimal object
+    if isinstance(explanation, dict):
+        missing_fields = [
+            field for field, errors in explanation.items()
+            if any("missing required" in str(e) for e in errors)
+        ]
+        if not missing_fields:
+            return None
+        return _build_minimal_body(missing_fields, schema)
+
+    return None
+
+
+def _build_minimal_body(fields: list[str], schema: dict | None) -> dict:
+    """
+    Build a minimal JSON body with placeholder values for required fields.
+    Uses schema type hints if available, otherwise guesses from field name.
+    """
+    body = {}
+    properties = schema.get("properties", {}) if schema else {}
+
+    for field in fields:
+        prop = properties.get(field, {})
+        field_type = prop.get("type")
+        enum = prop.get("enum")
+
+        if enum:
+            body[field] = enum[0]
+        elif field_type == "array" or field.endswith("_ids") or field.endswith("ids"):
+            body[field] = []
+        elif field_type == "integer":
+            body[field] = 0
+        elif field_type == "boolean":
+            body[field] = False
+        else:
+            # Default: empty string for unknown string/object fields
+            body[field] = ""
+
+    return body
 
 
 # ── Snapshot saving ───────────────────────────────────────────────────────────
