@@ -67,12 +67,16 @@ async def {{ package }}_api_client(set_config) -> {{ package }}.ApiClient:
     output_dir = f"results/swagger-coverage/{host_part}-{{ package }}"
     trace = _coverage_trace(host, output_dir, '{{ package }}')
 
+    # Add or modify headers here as needed for this service
+    DEFAULT_HEADERS = {
+        "Authorization": "api_key",
+        "Content-Type": "application/json",
+    }
+
     configuration = {{ package }}.Configuration(host=host)
-    api_client = {{ package }}.ApiClient(
-        configuration=configuration,
-        header_name="Authorization",
-        header_value="api_key"
-    )
+    api_client = {{ package }}.ApiClient(configuration=configuration)
+    for name, value in DEFAULT_HEADERS.items():
+        api_client.set_default_header(name, value)
 
     rest_client = api_client.rest_client
     original_request = rest_client.request.__func__

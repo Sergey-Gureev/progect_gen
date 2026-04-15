@@ -179,13 +179,14 @@ async def _real_request(
     }
 
     timeout = aiohttp.ClientTimeout(total=15)
-    async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:
+    all_headers = {"Content-Type": "application/json", **headers}
+    async with aiohttp.ClientSession(headers=all_headers, timeout=timeout) as session:
         req_kwargs: dict = {"ssl": False}
         if query_params:
             req_kwargs["params"] = query_params
 
-        # For POST with no request body — send empty JSON
-        if method == "POST" and not endpoint.get("request_body"):
+        # POST/PUT/PATCH always need a JSON body (empty if no schema defined)
+        if method in ("POST", "PUT", "PATCH"):
             req_kwargs["json"] = {}
 
         async with session.request(method, url, **req_kwargs) as resp:
@@ -336,18 +337,24 @@ def _build_assertions(response_data: dict | list, response_type: str) -> list[st
 
 def _load_auth_headers(project_dir: Path, service_name: str) -> dict:
     """
-    Read auth token from fixtures/{service_name}.py if present.
-    Looks for header_value="..." in the api_client fixture.
+    Read DEFAULT_HEADERS dict from fixtures/{service_name}.py.
+    This gives fill_skipped the same headers the test client uses.
     """
     fixture_file = project_dir / "fixtures" / f"{service_name}.py"
     if not fixture_file.exists():
         return {}
     source = fixture_file.read_text()
+
+    # Parse DEFAULT_HEADERS = { "Key": "value", ... }
     import re
-    match = re.search(r'header_name=["\']([^"\']+)["\'].*?header_value=["\']([^"\']+)["\']', source, re.DOTALL)
-    if match:
-        return {match.group(1): match.group(2)}
-    return {}
+    match = re.search(r"DEFAULT_HEADERS\s*=\s*\{([^}]+)\}", source, re.DOTALL)
+    if not match:
+        return {}
+
+    headers = {}
+    for pair in re.finditer(r'["\']([^"\']+)["\']\s*:\s*["\']([^"\']+)["\']', match.group(1)):
+        headers[pair.group(1)] = pair.group(2)
+    return headers
 
 
 # ── UI ────────────────────────────────────────────────────────────────────────
