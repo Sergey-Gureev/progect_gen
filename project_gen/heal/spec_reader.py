@@ -61,11 +61,13 @@ def _build_endpoint_info(
         "request_body": _extract_request_body(operation, spec),
         "response_schema": None,
         "response_type": "none",
+        "response_model_class": None,   # Pydantic class name, e.g. "V1AssetsPost200ResponseInner"
     }
 
-    schema, response_type = _extract_response(operation, spec)
+    schema, response_type, model_class = _extract_response(operation, spec)
     info["response_schema"] = schema
     info["response_type"] = response_type
+    info["response_model_class"] = model_class
 
     return info
 
@@ -100,9 +102,10 @@ def _extract_request_body(operation: dict, spec: dict) -> dict | None:
 
 def _extract_response(
     operation: dict, spec: dict
-) -> tuple[dict | None, ResponseType]:
+) -> tuple[dict | None, ResponseType, str | None]:
     """
-    Find the 200/201 response schema and determine response_type:
+    Find the 200/201 response schema and determine response_type.
+    Returns (schema, response_type, model_class_name).
 
     - pydantic       → response is a Pydantic model  (response.field)
     - list_pydantic  → list of Pydantic models        (response[0].field)
@@ -122,9 +125,27 @@ def _extract_response(
             raw_schema = content[media_type].get("schema", {})
             schema = _resolve_ref(raw_schema, spec)
             response_type = _detect_response_type(raw_schema, schema, spec)
-            return _flatten_schema(schema, spec), response_type
+            model_class = _extract_model_class_name(raw_schema, schema)
+            return _flatten_schema(schema, spec), response_type, model_class
 
-    return None, "none"
+    return None, "none", None
+
+
+def _extract_model_class_name(raw_schema: dict, resolved_schema: dict) -> str | None:
+    """
+    Extract the Pydantic model class name from a $ref.
+    e.g. {"$ref": "#/components/schemas/MyModel"} → "MyModel"
+    For arrays, looks inside items.$ref.
+    """
+    if "$ref" in raw_schema:
+        return raw_schema["$ref"].split("/")[-1]
+
+    if resolved_schema.get("type") == "array":
+        items = resolved_schema.get("items", {})
+        if "$ref" in items:
+            return items["$ref"].split("/")[-1]
+
+    return None
 
 
 def _detect_response_type(
