@@ -37,6 +37,57 @@ def _move_client_files(package_name: str) -> None:
     shutil.move(f"{package_name}/{package_name}", f"clients/http/{package_name}")
     shutil.rmtree(f"{package_name}")
     _fix_imports(directory=f"clients/http/{package_name}", package_name=package_name)
+    _fix_json_any(directory=f"clients/http/{package_name}")
+
+
+_JSON_ANY_VALIDATOR = '''
+    @model_validator(mode='before')
+    @classmethod
+    def coerce_scalar(cls, data):
+        """Wrap scalars/None/lists into actual_instance so Pydantic
+        can construct JsonAny from any value, not just dicts."""
+        if not isinstance(data, dict):
+            return {'actual_instance': data}
+        return data
+'''
+
+_JSON_ANY_IMPORT_PATCH = "from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictBytes, StrictFloat, StrictInt, StrictStr, ValidationError, field_validator, model_validator"
+_JSON_ANY_IMPORT_ORIGINAL = "from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictBytes, StrictFloat, StrictInt, StrictStr, ValidationError, field_validator"
+
+
+def _fix_json_any(directory: str) -> None:
+    """
+    Patch the generated json_any.py to handle scalars/None/lists inside
+    Dict[str, Optional[JsonAny]] and List[Optional[JsonAny]] fields.
+
+    openapi-generator emits these types for free-form JSON values, but Pydantic
+    will try to coerce every value to a JsonAny model — which fails for plain
+    strings, numbers, and nulls.  Adding a model_validator(mode='before') that
+    wraps non-dict values into {'actual_instance': v} fixes this universally for
+    all models that use JsonAny without touching any other generated file.
+    """
+    json_any_path = Path(directory) / "models" / "json_any.py"
+    if not json_any_path.exists():
+        return
+
+    source = json_any_path.read_text()
+
+    # Already patched
+    if "coerce_scalar" in source:
+        return
+
+    # 1. Add model_validator to the pydantic import line
+    if _JSON_ANY_IMPORT_ORIGINAL in source:
+        source = source.replace(_JSON_ANY_IMPORT_ORIGINAL, _JSON_ANY_IMPORT_PATCH)
+
+    # 2. Insert the validator right before __init__
+    source = source.replace(
+        "\n    def __init__(self, *args, **kwargs)",
+        _JSON_ANY_VALIDATOR + "\n    def __init__(self, *args, **kwargs)",
+    )
+
+    json_any_path.write_text(source)
+    print(f"  ✅ Patched json_any.py (coerce_scalar validator added)")
 
 
 def _fix_imports(directory: str, package_name: str) -> None:
