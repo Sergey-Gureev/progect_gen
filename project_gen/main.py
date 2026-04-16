@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import click
 import toml
 
 from project_gen.generate.fixture_generator import FixturesGenerator
 from project_gen.generate.test_generator import TestsGenerator
 from project_gen.generate.client_generator import generate_client
+from project_gen.generate.heal_generator import copy_heal_to_project
 from project_gen.setup.downloader import ensure_openapi_generator
 from project_gen.setup.project_setup import create_project
 
@@ -42,8 +45,9 @@ def generate_command() -> None:
         })
 
     FixturesGenerator().generate(services=services)
-    print("Done. Check/fill config/stg.yaml file.")
     TestsGenerator().generate()
+    copy_heal_to_project(Path.cwd())
+    print("Done. Check/fill config/stg.yaml file.")
 
 
 cli.add_command(setup_command)
