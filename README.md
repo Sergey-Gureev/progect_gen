@@ -113,11 +113,23 @@ This will:
 - Generate API clients into `clients/http/`
 - Generate test stubs into `tests/`
 - Generate `config/stg.yaml` with environment config
+- Auto-patch generated clients (see below)
+
+**Auto-patches applied after generation:**
+
+- `_fix_json_any` — adds a `coerce_scalar` validator to `json_any.py` so Pydantic
+  can handle scalars/None inside `Dict[str, JsonAny]` and `List[JsonAny]` fields.
+  Only runs if the spec has free-form JSON fields (i.e. `json_any.py` was generated).
+
+- `_fix_strict_fields` — makes all bare `StrictStr / StrictInt / StrictFloat / StrictBool`
+  fields `Optional[...]` with `default=None`. Real APIs often return `null` for fields
+  the spec marks as required, which causes Pydantic `ValidationError` at runtime.
 
 ### 8. After generation
 
 - Review and fill in `config/stg.yaml` with real environment values
-- Remove `@pytest.mark.skip` from tests you want to run
+- Remove `@pytest.mark.skip` from tests you want to run — on first run each test
+  automatically saves the API response as `expected_result/` (snapshot)
 - Commit the generated code as your baseline:
 
 ```bash
@@ -160,15 +172,16 @@ allure generate allure-results -o allure-report --clean
 allure open allure-report
 ```
 
-## Known issues
+## data_healer — automatic snapshots
 
-### `models/json_any.py` — catch-all for complex dictionaries
+Every generated test includes `data_healer` as a fixture parameter and calls
+`data_healer(response)` after the API call.
 
-Some swagger specs generate a `models/json_any.py` that fails to deserialize complex nested objects.
-If you see deserialization errors at runtime, open `clients/http/<service_name>/models/json_any.py` and add:
+**First run (no snapshot yet):**
+Saves `expected_result/<service>/<api_group>/<test_name>/response.json` and
+`non_null_fields.json` automatically. Test passes.
 
-```python
-"Dict[str, None]",  # catch-all for complex dictionaries
-```
-
-This is a limitation of the openapi-generator Python template, not of project_gen itself.
+**Subsequent runs:**
+Asserts that all fields which were non-null in the saved snapshot are still non-null.
+If the API response changes, the test fails and offers an interactive prompt to update
+the snapshot (skipped in CI where stdin is not a tty).
