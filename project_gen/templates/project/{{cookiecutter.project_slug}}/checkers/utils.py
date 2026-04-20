@@ -1,8 +1,8 @@
 """
-Shared response checker utilities.
+Snapshot-based response checker.
 
-check_response() — snapshot-based assertion for successful responses.
-check_status_code_http() — context manager for expected HTTP error responses.
+check_response() — asserts the response matches the saved snapshot.
+For HTTP error assertions use check_status_code_http() from checkers.checkers.
 
 check_response() covers three scenarios:
 
@@ -23,7 +23,6 @@ check_response() covers three scenarios:
 import json
 import os
 import sys
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 
@@ -116,52 +115,6 @@ def save_initial_snapshot(response, snapshot_dir: Path) -> None:
     print(f"  💾 Snapshot saved: {snapshot_dir.name}")
 
 
-# ── HTTP status checker ───────────────────────────────────────────────────────
-
-@asynccontextmanager
-async def check_status_code_http(expected_status: int):
-    """
-    Async context manager for tests that expect an HTTP error response.
-
-    Supports two usage patterns:
-
-        # 1. inline — inside the test body
-        async with check_status_code_http(400):
-            await api.create_asset(body=invalid_payload)
-
-        # 2. decorator — wraps the entire async test function
-        @check_status_code_http(404)
-        async def test_get_missing_asset(api):
-            await api.get_asset(id="nonexistent")
-
-    Works with any generated client that raises exceptions with a .status
-    attribute (openapi-generator asyncio clients raise ApiException /
-    BadRequestException / NotFoundException etc., all carry .status).
-
-    In CI and in interactive runs alike — no prompt, deterministic pass/fail.
-    """
-    try:
-        yield
-        raise AssertionError(
-            f"\n  ✗ Expected HTTP {expected_status} but request succeeded"
-        )
-    except AssertionError:
-        raise
-    except Exception as e:
-        actual = getattr(e, "status", None)
-        if actual is None:
-            raise  # not an HTTP exception — let it propagate as-is
-        if actual != expected_status:
-            reason = getattr(e, "reason", "") or ""
-            body = str(getattr(e, "body", "") or "")[:300]
-            detail = f" ({reason})" if reason else ""
-            body_line = f"\n  Body: {body}" if body else ""
-            raise AssertionError(
-                f"\n  ✗ Expected HTTP {expected_status}, got HTTP {actual}{detail}{body_line}"
-            ) from None
-        print(f"  ✅ HTTP {expected_status} confirmed")
-
-
 def _ask(prompt: str) -> bool:
     """Prompt user y/N. Only active when pytest is run with --fix.
 
@@ -181,22 +134,24 @@ def _ask(prompt: str) -> bool:
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def check_response(response, snapshot_dir: Path, test_path: Path | None = None) -> None:
+def assert_response_matches_snapshot(response, snapshot_dir: Path, test_path: Path | None = None) -> None:
     """
-    Assert that the response matches the saved snapshot.
-    Test ALWAYS fails on any mismatch. Two distinct recovery paths:
+    Compare actual API response against the saved expected_result snapshot.
 
-    1. Value changed (field still non-null, just a different value)
-       → with --fix: prompts "Update expected_values.json? [y/N]"
-       → yes: file updated, test passes on this run
-       → no / CI: test stays red, hint shows the --fix commands
+    On first run (no snapshot): saves response.json, non_null_fields.json,
+    expected_values.json — test passes, user must review expected_values.json.
 
-    2. Field became null (was non-null in snapshot)
-       → no prompt ever — always fails (regression, not data drift)
-       → prints affected fields and snapshot file paths for manual fix
+    On subsequent runs: compares actual response to snapshot. ALWAYS fails on
+    any mismatch. Two recovery paths:
 
-    Pass test_path=Path(request.fspath) from the fixture to get precise
-    per-test commands in the --fix hint.
+    1. Value changed (field present, different value)
+       → run pytest --fix to accept interactively field by field
+
+    2. Field became null (was non-null in snapshot) — regression path
+       → no prompt, always fails; fix the API or update snapshot manually
+
+    Pass test_path=Path(request.fspath) from the fixture for precise
+    --fix commands in the error output.
     """
     if response is None:
         raise AssertionError("\n  ✗ Response is None")

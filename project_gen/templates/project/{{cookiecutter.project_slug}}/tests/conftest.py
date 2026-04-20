@@ -55,7 +55,7 @@ def data_healer(request):
         snapshot_dir = test_file.parent / "expected_result"
 
     def heal(response) -> None:
-        from checkers.utils import check_response
-        check_response(response, snapshot_dir, test_path=test_file)
+        from checkers.utils import assert_response_matches_snapshot
+        assert_response_matches_snapshot(response, snapshot_dir, test_path=test_file)
 
     return heal
