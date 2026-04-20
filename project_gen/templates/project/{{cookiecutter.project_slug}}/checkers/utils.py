@@ -118,21 +118,19 @@ def save_initial_snapshot(response, snapshot_dir: Path) -> None:
 def _ask(prompt: str) -> bool:
     """Prompt user y/N. Only active when pytest is run with --fix.
 
-    Uses sys.__stdin__ / sys.__stdout__ — the original streams saved before
-    pytest replaces them with its capture proxy. Bypasses all capture without
-    needing -s or /dev/tty tricks.
-    Returns False silently when --fix is not set (CI mode).
+    Opens /dev/tty twice — once for writing the prompt, once for reading the
+    answer. /dev/tty is the controlling terminal of the process and is immune
+    to pytest's capture (neither fd-level nor sys-level redirection touches it).
+    isatty() is NOT used — it returns False inside pytest even in a real terminal.
+    Returns False silently in CI (no /dev/tty) or when --fix is not set.
     """
     if not os.environ.get("PYTEST_FIX_SNAPSHOTS"):
         return False
-    stdin = sys.__stdin__
-    stdout = sys.__stdout__
-    if stdin is None or stdout is None or not stdin.isatty():
-        return False
     try:
-        stdout.write(prompt + " ")
-        stdout.flush()
-        return stdin.readline().strip().lower() in ("y", "yes")
+        with open("/dev/tty", "w") as out, open("/dev/tty") as inp:
+            out.write(prompt + " ")
+            out.flush()
+            return inp.readline().strip().lower() in ("y", "yes")
     except (OSError, EOFError):
         return False
 
