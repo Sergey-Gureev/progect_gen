@@ -22,7 +22,7 @@ check_response() covers three scenarios:
 """
 import json
 import sys
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 
@@ -117,17 +117,21 @@ def save_initial_snapshot(response, snapshot_dir: Path) -> None:
 
 # ── HTTP status checker ───────────────────────────────────────────────────────
 
-@contextmanager
-def check_status_code_http(expected_status: int):
+@asynccontextmanager
+async def check_status_code_http(expected_status: int):
     """
-    Context manager for tests that expect an HTTP error response.
+    Async context manager for tests that expect an HTTP error response.
 
-    Usage:
-        with check_status_code_http(404):
-            response = await api.get_asset(id="nonexistent")
+    Supports two usage patterns:
 
-        with check_status_code_http(400):
-            response = await api.create_asset(body=invalid_payload)
+        # 1. inline — inside the test body
+        async with check_status_code_http(400):
+            await api.create_asset(body=invalid_payload)
+
+        # 2. decorator — wraps the entire async test function
+        @check_status_code_http(404)
+        async def test_get_missing_asset(api):
+            await api.get_asset(id="nonexistent")
 
     Works with any generated client that raises exceptions with a .status
     attribute (openapi-generator asyncio clients raise ApiException /
