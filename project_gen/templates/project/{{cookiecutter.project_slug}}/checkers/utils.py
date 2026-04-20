@@ -21,6 +21,7 @@ check_response() covers three scenarios:
    → raises AssertionError so the test stays red until confirmed
 """
 import json
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -162,33 +163,40 @@ async def check_status_code_http(expected_status: int):
 
 
 def _ask(prompt: str) -> bool:
-    """Prompt user y/N. Returns False silently in CI."""
-    if not sys.stdin.isatty():
+    """Prompt user y/N. Only active when pytest is run with --fix.
+
+    Reads from /dev/tty directly so it works without -s (bypasses pytest capture).
+    Returns False silently when --fix is not set (CI mode).
+    """
+    if not os.environ.get("PYTEST_FIX_SNAPSHOTS"):
         return False
     try:
-        return input(prompt).strip().lower() in ("y", "yes")
-    except EOFError:
+        with open("/dev/tty") as tty:
+            sys.stderr.write(prompt + " ")
+            sys.stderr.flush()
+            return tty.readline().strip().lower() in ("y", "yes")
+    except (OSError, EOFError):
         return False
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def check_response(response, snapshot_dir: Path) -> None:
+def check_response(response, snapshot_dir: Path, test_path: Path | None = None) -> None:
     """
     Assert that the response matches the saved snapshot.
     Test ALWAYS fails on any mismatch. Two distinct recovery paths:
 
     1. Value changed (field still non-null, just a different value)
-       → ask: "Update expected_values.json? [y/N]"
+       → with --fix: prompts "Update expected_values.json? [y/N]"
        → yes: file updated, test passes on this run
-       → no:  test stays red
+       → no / CI: test stays red, hint shows the --fix commands
 
     2. Field became null (was non-null in snapshot)
-       → ask: "Remove from snapshot? [y/N]"  (explicit, harder decision)
-       → yes: field removed, test passes on this run
-       → no:  test stays red
+       → no prompt ever — always fails (regression, not data drift)
+       → prints affected fields and snapshot file paths for manual fix
 
-    In CI both prompts are skipped — test always stays red on mismatch.
+    Pass test_path=Path(request.fspath) from the fixture to get precise
+    per-test commands in the --fix hint.
     """
     if response is None:
         raise AssertionError("\n  ✗ Response is None")
@@ -252,18 +260,21 @@ def check_response(response, snapshot_dir: Path) -> None:
 
     if failures:
         has_only_value_changes = not null_failures
-        if has_only_value_changes and not sys.stdin.isatty():
+        in_fix_mode = bool(os.environ.get("PYTEST_FIX_SNAPSHOTS"))
+        if has_only_value_changes and not in_fix_mode:
+            test_arg = f" {test_path}" if test_path else ""
             hint = (
                 "\n\n"
-                "  ────────────────────────────────────────────────────────────────\n"
+                "  ──────────────────────────────────────────────────────────────────\n"
                 "  💡 These are value changes (fields still present, just differ).\n"
-                "     To review and accept them, re-run this test with -s:\n\n"
-                "       pytest -s\n\n"
+                "     To review and accept them interactively, re-run with --fix:\n\n"
+               f"     This test:   pytest --fix{test_arg}\n"
+                "     All failed:  pytest --fix\n\n"
                 "     You will be prompted for each changed field.\n"
-                "     Type  y  to update the snapshot,  n  to keep it red.\n\n"
-                "  🛑 Null field failures (field → None) are NOT fixable via -s.\n"
-                "     They require a code or API fix.\n"
-                "  ────────────────────────────────────────────────────────────────"
+                "     Type  y  to update the snapshot,  n  to keep the test red.\n\n"
+                "  🛑 Null failures (field → None) require a code or API fix.\n"
+                "     --fix won't help with those.\n"
+                "  ──────────────────────────────────────────────────────────────────"
             )
         else:
             hint = ""
