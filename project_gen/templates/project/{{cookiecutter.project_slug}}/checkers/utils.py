@@ -225,36 +225,44 @@ def check_response(response, snapshot_dir: Path) -> None:
             old_values = updated
             print("  ✅ expected_values.json updated")
 
-    # ── Path 2: null failures — ask to remove from snapshot ───────────────────
+    # ── Path 2: null failures — no prompt, always fail ───────────────────────
     if null_failures:
-        print(f"\n  ❌ {len(null_failures)} field(s) became null in {snapshot_dir.name}:")
+        print(f"\n  🛑 {len(null_failures)} field(s) became null in {snapshot_dir.name}:")
         for f in null_failures:
-            print(f"    - {f}  (was non-null)")
-        print("     Looks like a regression — review carefully.")
-        if _ask("\n  Remove these fields from snapshot? [y/N] "):
-            old_nn = json.loads(non_null_path.read_text())
-            non_null_path.write_text(json.dumps([f for f in old_nn if f not in null_failures], indent=2))
-            non_null_fields = json.loads(non_null_path.read_text())
-            if ev_path.exists():
-                ev = json.loads(ev_path.read_text())
-                for f in null_failures:
-                    ev.pop(f, None)
-                ev_path.write_text(json.dumps(ev, indent=2))
-                old_values = ev
-            null_failures = []
-            print("  ✅ Snapshot updated")
+            print(f"    - {f}  (was non-null in snapshot)")
+        print(
+            "\n  This looks like a regression, not a data change."
+            "\n  Fix the root cause, or remove the field from the snapshot manually:"
+            f"\n    {non_null_path}"
+            f"\n    {ev_path}"
+        )
 
     # ── Assert against current (possibly just-updated) snapshot ───────────────
-    failures = []
-    for field in non_null_fields:
-        if raw.get(field) is None:
-            failures.append(f"  ✗ [{field}] became None (was non-null)")
-    for field, expected in old_values.items():
-        if raw.get(field) != expected:
-            failures.append(f"  ✗ [{field}] value mismatch  ↑ see diff above")
+    value_failure_fields = [
+        f for f in old_values if raw.get(f) != old_values[f]
+    ]
+    failures = (
+        [f"  ✗ [{f}] became None (was non-null) — possible regression" for f in null_failures]
+        + [f"  ✗ [{f}] value mismatch  ↑ see diff above" for f in value_failure_fields]
+    )
 
     if failures:
-        hint = "" if sys.stdin.isatty() else "\n\n  💡 Run pytest -s to get the interactive update prompt"
+        has_only_value_changes = not null_failures
+        if has_only_value_changes and not sys.stdin.isatty():
+            hint = (
+                "\n\n"
+                "  ────────────────────────────────────────────────────────────────\n"
+                "  💡 These are value changes (fields still present, just differ).\n"
+                "     To review and accept them, re-run this test with -s:\n\n"
+                "       pytest -s\n\n"
+                "     You will be prompted for each changed field.\n"
+                "     Type  y  to update the snapshot,  n  to keep it red.\n\n"
+                "  🛑 Null field failures (field → None) are NOT fixable via -s.\n"
+                "     They require a code or API fix.\n"
+                "  ────────────────────────────────────────────────────────────────"
+            )
+        else:
+            hint = ""
         raise AssertionError(
             f"\n\n  {len(failures)} assertion(s) failed in {snapshot_dir.name}:\n"
             + "\n".join(failures)
