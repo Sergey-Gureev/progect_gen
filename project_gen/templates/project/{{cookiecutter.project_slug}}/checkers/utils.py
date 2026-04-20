@@ -118,15 +118,16 @@ def save_initial_snapshot(response, snapshot_dir: Path) -> None:
 def _ask(prompt: str) -> bool:
     """Prompt user y/N. Only active when pytest is run with --fix.
 
-    Reads from /dev/tty directly so it works without -s (bypasses pytest capture).
+    Opens /dev/tty in r+ mode for both writing the prompt and reading the
+    answer — this bypasses pytest's stdout AND stderr capture entirely.
     Returns False silently when --fix is not set (CI mode).
     """
     if not os.environ.get("PYTEST_FIX_SNAPSHOTS"):
         return False
     try:
-        with open("/dev/tty") as tty:
-            sys.stderr.write(prompt + " ")
-            sys.stderr.flush()
+        with open("/dev/tty", "r+") as tty:
+            tty.write(prompt + " ")
+            tty.flush()
             return tty.readline().strip().lower() in ("y", "yes")
     except (OSError, EOFError):
         return False
