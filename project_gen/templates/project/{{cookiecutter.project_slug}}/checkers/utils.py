@@ -113,57 +113,14 @@ def save_initial_snapshot(response, snapshot_dir: Path) -> None:
     print(f"  💾 Snapshot saved: {snapshot_dir.name}")
 
 
-def propose_snapshot_update(response, snapshot_dir: Path) -> None:
-    """
-    When assertions fail (response was 200 but data drifted), show what changed
-    and offer an interactive prompt to overwrite the snapshot.
-    Silent in CI (stdin is not a tty).
-    """
-    raw = _raw_item(response)
-
-    # Schema drift (non_null_fields)
-    non_null_path = snapshot_dir / "non_null_fields.json"
-    old_non_null = json.loads(non_null_path.read_text()) if non_null_path.exists() else []
-    new_non_null = [k for k, v in raw.items() if v is not None]
-    schema_added = sorted(set(new_non_null) - set(old_non_null))
-    schema_removed = sorted(set(old_non_null) - set(new_non_null))
-
-    # Value drift (expected_values)
-    ev_path = snapshot_dir / "expected_values.json"
-    old_values = json.loads(ev_path.read_text()) if ev_path.exists() else {}
-    value_changed = {
-        k: (old_values[k], raw.get(k))
-        for k in old_values
-        if k in raw and raw[k] != old_values[k]
-    }
-
-    if not schema_added and not schema_removed and not value_changed:
-        return
-
-    print(f"\n  ⚠️  Snapshot drift in {snapshot_dir.name}:")
-    for f in schema_added:
-        print(f"    schema  + {f}  (now non-null)")
-    for f in schema_removed:
-        print(f"    schema  - {f}  (now null / missing)")
-    for f, (old, new) in value_changed.items():
-        print(f"    value   ~ {f}: {old!r} → {new!r}")
-
+def _ask(prompt: str) -> bool:
+    """Prompt user y/N. Returns False silently in CI."""
     if not sys.stdin.isatty():
-        return
-
+        return False
     try:
-        answer = input("\n  Update snapshot? [y/N] ").strip().lower()
+        return input(prompt).strip().lower() in ("y", "yes")
     except EOFError:
-        return
-
-    if answer in ("y", "yes"):
-        sample = [_to_raw(i) for i in response[:3]] if isinstance(response, list) else _to_raw(response)
-        (snapshot_dir / "response.json").write_text(json.dumps(sample, indent=2, default=str))
-        non_null_path.write_text(json.dumps(new_non_null, indent=2))
-        if ev_path.exists():
-            new_values = {k: v for k, v in raw.items() if v is not None}
-            ev_path.write_text(json.dumps(new_values, indent=2, default=str))
-        print("  ✅ Snapshot updated")
+        return False
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
@@ -171,12 +128,19 @@ def propose_snapshot_update(response, snapshot_dir: Path) -> None:
 def check_response(response, snapshot_dir: Path) -> None:
     """
     Assert that the response matches the saved snapshot.
+    Test ALWAYS fails on any mismatch. Two distinct recovery paths:
 
-    Flow:
-      response is None      → fail immediately
-      no snapshot yet       → save_initial_snapshot(), pass (first run)
-      snapshot exists       → assert non_null_fields + expected_values
-      assertions fail       → propose_snapshot_update(), re-raise
+    1. Value changed (field still non-null, just a different value)
+       → ask: "Update expected_values.json? [y/N]"
+       → yes: file updated, test passes on this run
+       → no:  test stays red
+
+    2. Field became null (was non-null in snapshot)
+       → ask: "Remove from snapshot? [y/N]"  (explicit, harder decision)
+       → yes: field removed, test passes on this run
+       → no:  test stays red
+
+    In CI both prompts are skipped — test always stays red on mismatch.
     """
     if response is None:
         with soft_assertions():
@@ -184,31 +148,64 @@ def check_response(response, snapshot_dir: Path) -> None:
         return
 
     non_null_path = snapshot_dir / "non_null_fields.json"
-
     if not non_null_path.exists():
         save_initial_snapshot(response, snapshot_dir)
         return
 
     raw = _raw_item(response)
     is_list = isinstance(response, list)
+    ev_path = snapshot_dir / "expected_values.json"
+    old_values: dict = json.loads(ev_path.read_text()) if ev_path.exists() else {}
+    non_null_fields: list[str] = json.loads(non_null_path.read_text())
 
-    try:
-        with soft_assertions():
-            if is_list:
-                assert_that(len(response)).is_greater_than_or_equal_to(0)
+    # ── Classify ──────────────────────────────────────────────────────────────
+    null_failures = [f for f in non_null_fields if raw.get(f) is None]
+    null_failures += [
+        f for f in old_values
+        if f not in null_failures and raw.get(f) is None and old_values[f] is not None
+    ]
+    value_changes = {
+        f: (old_values[f], raw[f])
+        for f in old_values
+        if f not in null_failures and raw.get(f) is not None and raw.get(f) != old_values[f]
+    }
 
-            # Schema guard: non-null fields
-            non_null_fields: list[str] = json.loads(non_null_path.read_text())
-            for field in non_null_fields:
-                assert_that(raw.get(field)).described_as(field).is_not_none()
+    # ── Path 1: value changes — ask to update expected_values.json ───────────
+    if value_changes:
+        print(f"\n  ⚠️  {len(value_changes)} value(s) changed in {snapshot_dir.name}:")
+        for f, (old, new) in value_changes.items():
+            print(f"    ~ {f}: {str(old)[:80]!r} → {str(new)[:80]!r}")
+        if _ask("\n  Update expected_values.json? [y/N] "):
+            updated = dict(old_values)
+            updated.update({f: new for f, (_, new) in value_changes.items()})
+            ev_path.write_text(json.dumps(updated, indent=2, default=str))
+            old_values = updated
+            print("  ✅ expected_values.json updated")
 
-            # Value guard: expected_values (only if file exists and non-empty)
-            ev_path = snapshot_dir / "expected_values.json"
+    # ── Path 2: null failures — ask to remove from snapshot ───────────────────
+    if null_failures:
+        print(f"\n  ❌ {len(null_failures)} field(s) became null in {snapshot_dir.name}:")
+        for f in null_failures:
+            print(f"    - {f}  (was non-null)")
+        print("     Looks like a regression — review carefully.")
+        if _ask("\n  Remove these fields from snapshot? [y/N] "):
+            old_nn = json.loads(non_null_path.read_text())
+            non_null_path.write_text(json.dumps([f for f in old_nn if f not in null_failures], indent=2))
+            non_null_fields = json.loads(non_null_path.read_text())
             if ev_path.exists():
-                expected_values: dict = json.loads(ev_path.read_text())
-                for field, expected in expected_values.items():
-                    assert_that(raw.get(field)).described_as(field).is_equal_to(expected)
+                ev = json.loads(ev_path.read_text())
+                for f in null_failures:
+                    ev.pop(f, None)
+                ev_path.write_text(json.dumps(ev, indent=2))
+                old_values = ev
+            null_failures = []
+            print("  ✅ Snapshot updated")
 
-    except AssertionError:
-        propose_snapshot_update(response, snapshot_dir)
-        raise
+    # ── Assert against current (possibly just-updated) snapshot ───────────────
+    with soft_assertions():
+        if is_list:
+            assert_that(len(response)).is_greater_than_or_equal_to(0)
+        for field in non_null_fields:
+            assert_that(raw.get(field)).described_as(field).is_not_none()
+        for field, expected in old_values.items():
+            assert_that(raw.get(field)).described_as(field).is_equal_to(expected)
