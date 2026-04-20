@@ -140,6 +140,14 @@ def _fix_strict_fields(directory: str) -> None:
             new_source,
         )
 
+        # Allow None in enum field_validators (validator runs even for Optional fields)
+        new_source = re.sub(
+            r"^(\s+)if value not in set\(",
+            r"\1if value is None:\n\1    return value\n\1if value not in set(",
+            new_source,
+            flags=re.MULTILINE,
+        )
+
         if new_source != source:
             # Ensure Optional is imported
             if "from typing import" in new_source and "Optional" not in new_source.split("from typing import")[1].split("\n")[0]:

@@ -90,6 +90,7 @@ class FixturesGenerator:
         conftest = (
             "import os\n"
             "from pathlib import Path\n"
+            "import pytest\n"
             "\n"
             "pytest_plugins = [\n"
             f"{plugin_lines}"
@@ -103,6 +104,29 @@ class FixturesGenerator:
             "        project_root = str(current_dir).split('/test')[0]\n"
             "        os.chdir(project_root)\n"
             "        print(f'Changed working directory to: {project_root}')\n"
+            "\n"
+            "\n"
+            "@pytest.fixture(autouse=True, scope='function')\n"
+            "def data_healer(request):\n"
+            '    """Auto-injected fixture: saves initial expected_result on first run,\n'
+            "    asserts non-null fields on subsequent runs, and offers interactive\n"
+            '    snapshot update when API data changes."""\n'
+            "    test_file = Path(str(request.fspath))\n"
+            "    project_root = test_file.parent\n"
+            "    while project_root.name != 'tests' and project_root != project_root.parent:\n"
+            "        project_root = project_root.parent\n"
+            "    project_root = project_root.parent\n"
+            "    try:\n"
+            "        rel_parts = test_file.relative_to(project_root / 'tests').parts[:-1]\n"
+            "        snapshot_dir = project_root / 'expected_result' / Path(*rel_parts)\n"
+            "    except ValueError:\n"
+            "        snapshot_dir = test_file.parent / 'expected_result'\n"
+            "\n"
+            "    def heal(response) -> None:\n"
+            "        from checkers.utils import check_response\n"
+            "        check_response(response, snapshot_dir)\n"
+            "\n"
+            "    return heal\n"
         )
         with open("tests/conftest.py", "w", encoding="utf-8") as f:
             f.write(conftest)
