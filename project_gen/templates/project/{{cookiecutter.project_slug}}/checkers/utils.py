@@ -1,7 +1,10 @@
 """
-Shared response checker utility.
+Shared response checker utilities.
 
-check_response() covers three scenarios automatically:
+check_response() — snapshot-based assertion for successful responses.
+check_status_code_http() — context manager for expected HTTP error responses.
+
+check_response() covers three scenarios:
 
 1. No snapshot yet (first run after a test is un-skipped):
    → saves response.json, non_null_fields.json, expected_values.json
@@ -12,16 +15,15 @@ check_response() covers three scenarios automatically:
 2. Snapshot exists, all assertions pass:
    → test passes
 
-3. Snapshot exists but assertions fail (data drifted on the API side):
+3. Snapshot exists but assertions fail:
    → prints what changed
    → offers an interactive prompt to update the snapshot (silent in CI)
-   → re-raises AssertionError so the test stays red until confirmed
+   → raises AssertionError so the test stays red until confirmed
 """
 import json
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-
-from assertpy import assert_that, soft_assertions
 
 
 # ── Raw serialisation ─────────────────────────────────────────────────────────
@@ -113,6 +115,48 @@ def save_initial_snapshot(response, snapshot_dir: Path) -> None:
     print(f"  💾 Snapshot saved: {snapshot_dir.name}")
 
 
+# ── HTTP status checker ───────────────────────────────────────────────────────
+
+@contextmanager
+def check_status_code_http(expected_status: int):
+    """
+    Context manager for tests that expect an HTTP error response.
+
+    Usage:
+        with check_status_code_http(404):
+            response = await api.get_asset(id="nonexistent")
+
+        with check_status_code_http(400):
+            response = await api.create_asset(body=invalid_payload)
+
+    Works with any generated client that raises exceptions with a .status
+    attribute (openapi-generator asyncio clients raise ApiException /
+    BadRequestException / NotFoundException etc., all carry .status).
+
+    In CI and in interactive runs alike — no prompt, deterministic pass/fail.
+    """
+    try:
+        yield
+        raise AssertionError(
+            f"\n  ✗ Expected HTTP {expected_status} but request succeeded"
+        )
+    except AssertionError:
+        raise
+    except Exception as e:
+        actual = getattr(e, "status", None)
+        if actual is None:
+            raise  # not an HTTP exception — let it propagate as-is
+        if actual != expected_status:
+            reason = getattr(e, "reason", "") or ""
+            body = str(getattr(e, "body", "") or "")[:300]
+            detail = f" ({reason})" if reason else ""
+            body_line = f"\n  Body: {body}" if body else ""
+            raise AssertionError(
+                f"\n  ✗ Expected HTTP {expected_status}, got HTTP {actual}{detail}{body_line}"
+            ) from None
+        print(f"  ✅ HTTP {expected_status} confirmed")
+
+
 def _ask(prompt: str) -> bool:
     """Prompt user y/N. Returns False silently in CI."""
     if not sys.stdin.isatty():
@@ -143,8 +187,7 @@ def check_response(response, snapshot_dir: Path) -> None:
     In CI both prompts are skipped — test always stays red on mismatch.
     """
     if response is None:
-        with soft_assertions():
-            assert_that(response).is_not_none()
+        raise AssertionError("\n  ✗ Response is None")
         return
 
     non_null_path = snapshot_dir / "non_null_fields.json"
@@ -202,10 +245,18 @@ def check_response(response, snapshot_dir: Path) -> None:
             print("  ✅ Snapshot updated")
 
     # ── Assert against current (possibly just-updated) snapshot ───────────────
-    with soft_assertions():
-        if is_list:
-            assert_that(len(response)).is_greater_than_or_equal_to(0)
-        for field in non_null_fields:
-            assert_that(raw.get(field)).described_as(field).is_not_none()
-        for field, expected in old_values.items():
-            assert_that(raw.get(field)).described_as(field).is_equal_to(expected)
+    failures = []
+    for field in non_null_fields:
+        if raw.get(field) is None:
+            failures.append(f"  ✗ [{field}] became None (was non-null)")
+    for field, expected in old_values.items():
+        if raw.get(field) != expected:
+            failures.append(f"  ✗ [{field}] value mismatch  ↑ see diff above")
+
+    if failures:
+        hint = "" if sys.stdin.isatty() else "\n\n  💡 Run pytest -s to get the interactive update prompt"
+        raise AssertionError(
+            f"\n\n  {len(failures)} assertion(s) failed in {snapshot_dir.name}:\n"
+            + "\n".join(failures)
+            + hint
+        )
