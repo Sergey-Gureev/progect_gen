@@ -1,1 +1,0 @@
-1. after installation make sure there is no skipped tests

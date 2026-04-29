@@ -1,0 +1,8 @@
+service:
+{% set seen = namespace(packages=[]) %}
+{%- for client in clients %}
+{%- if client.get("package") not in seen.packages %}
+  {{ client.get("package") }}: "{{ client.get('host') }}"
+{%- set seen.packages = seen.packages + [client.get("package")] %}
+{%- endif %}
+{%- endfor %}

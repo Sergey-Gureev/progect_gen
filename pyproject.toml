@@ -18,6 +18,7 @@ packages = [{ include = "project_gen" }]
     pytest-asyncio = ">=1.0.0,<2.0.0"
     pytest = ">=4.6.4,<9"
     schemathesis = "^3.39.16"
+    inflection = "^0.5.1"
 
 [tool.poetry.scripts]
 project_gen = "project_gen.main:cli"

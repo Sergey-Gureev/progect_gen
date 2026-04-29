@@ -1,0 +1,100 @@
+import os
+import re
+import subprocess
+import types
+import pytest
+import aiohttp
+from pathlib import Path
+import clients.http.{{ package }} as {{ package }}
+from fixtures._coverage import _coverage_trace
+from swagger_coverage_py.reporter import CoverageReporter
+from vyper import v
+
+
+def _generate_report_silent(reporter: CoverageReporter) -> None:
+    """Run swagger-coverage report generation with suppressed output."""
+    import platform
+    inner_location = 'swagger-coverage-commandline/bin/swagger-coverage-commandline'
+    cmd_path = os.path.join(os.path.dirname(reporter.__class__.__module__.replace('.', '/') + '.py'), inner_location)
+    # resolve path relative to the package
+    import swagger_coverage_py
+    cmd_path = os.path.join(os.path.dirname(swagger_coverage_py.__file__), inner_location)
+
+    if not Path(cmd_path).exists():
+        return
+
+    if reporter.swagger_coverage_config:
+        command = f"{cmd_path} -s {reporter.swagger_doc_file} -i {reporter.output_dir} -c {reporter.swagger_coverage_config}"
+    else:
+        command = f"{cmd_path} -s {reporter.swagger_doc_file} -i {reporter.output_dir}"
+
+    if platform.system() == "Windows":
+        command = command.replace("/", "\\")
+
+    if reporter.is_any_files():
+        subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_swagger_coverage_{{ package }}(set_config):
+    host = v.get('service.{{ package }}')
+    host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
+
+    reporter = CoverageReporter(api_name='{{ package }}', host=host)
+    # Override internal output_dir to use results/ folder
+    reporter.output_dir = f"results/swagger-coverage/{host_part}-{{ package }}"
+    reporter.setup(path_to_swagger_json='{{ relative_path_to_swagger }}')
+
+    config_path = Path(f"config/swagger-coverage-config-{{ package }}.json")
+    reporter.swagger_coverage_config = str(config_path) if config_path.exists() else None
+
+    Path("results/specs").mkdir(parents=True, exist_ok=True)
+    swagger_file = Path(reporter.swagger_doc_file)
+    target = Path("results/specs") / swagger_file.name
+    if swagger_file.exists():
+        swagger_file.rename(target)
+        reporter.swagger_doc_file = str(target)
+    yield
+    # reporter.generate_report()  # replaced: verbose Java output pollutes test logs
+    _generate_report_silent(reporter)
+    reporter.cleanup_input_files()
+
+
+@pytest.fixture(scope="session")
+async def {{ package }}_api_client(set_config) -> {{ package }}.ApiClient:
+    host = v.get('service.{{ package }}')
+    host_part = re.sub(r"^\w+://", "", host.rstrip("/"))
+    output_dir = f"results/swagger-coverage/{host_part}-{{ package }}"
+    trace = _coverage_trace(host, output_dir, '{{ package }}')
+
+    # Add or modify headers here as needed for this service
+    DEFAULT_HEADERS = {
+        "Authorization": "api_key",
+        "Content-Type": "application/json",
+    }
+
+    configuration = {{ package }}.Configuration(host=host)
+    api_client = {{ package }}.ApiClient(configuration=configuration)
+    for name, value in DEFAULT_HEADERS.items():
+        api_client.set_default_header(name, value)
+
+    rest_client = api_client.rest_client
+    original_request = rest_client.request.__func__
+
+    async def patched_request(self, *args, **kwargs):
+        if self.pool_manager is None or self.pool_manager.closed:
+            self.pool_manager = aiohttp.ClientSession(
+                trust_env=True,
+                trace_configs=[trace],
+            )
+        return await original_request(self, *args, **kwargs)
+
+    rest_client.request = types.MethodType(patched_request, rest_client)
+    yield api_client
+    await rest_client.close()
+
+{% for client in clients %}
+@pytest.fixture(scope="session")
+def {{ client.get("package") }}_{{ client.get("client") | underscore }}({{ client.get("package") }}_api_client) -> {{ client.get("package") }}.{{ client.get("client") }}:
+    return {{ client.get("package") }}.{{ client.get("client") }}(api_client={{ client.get("package") }}_api_client)
+{% endfor %}
