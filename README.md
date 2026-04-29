@@ -144,10 +144,10 @@ git commit -m "init: generated from swagger"
 pytest tests/
 
 # Run tests for a specific service
-pytest tests/cyco_app/
+pytest tests/game_app/
 
 # Run a single test
-pytest tests/cyco_app/http/users_api/v1_users_get/test_v1_users_get.py
+pytest tests/game_app/http/users_api/v1_users_get/test_v1_users_get.py
 ```
 
 ## Allure reports
@@ -171,6 +171,7 @@ allure serve allure-results
 allure generate allure-results -o allure-report --clean
 allure open allure-report
 ```
+
 
 ## data_healer — automatic snapshots
 
