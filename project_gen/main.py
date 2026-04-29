@@ -42,8 +42,8 @@ def generate_command() -> None:
         })
 
     FixturesGenerator().generate(services=services)
-    print("Done. Check/fill config/stg.yaml file.")
     TestsGenerator().generate()
+    print("Done. Check/fill config/stg.yaml file.")
 
 
 cli.add_command(setup_command)

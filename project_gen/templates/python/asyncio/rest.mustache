@@ -229,7 +229,11 @@ class RESTClientObject:
             r = await pool_manager.request(**args)
         except RuntimeError as e:
             if "Event loop is closed" in e.args[0]:
-                asyncio.run(self.pool_manager.__aexit__(None,None,None))
+                try:
+                    await self.pool_manager.__aexit__(None, None, None)
+                except Exception:
+                    pass
+            raise
         else:
             log_response = r.__dict__
             data = await r.read()

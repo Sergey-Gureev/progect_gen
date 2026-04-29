@@ -24,7 +24,7 @@ run_tests:
     paths:
       - $ALLURE_RESULTS
       - reports/coverage
-      - reports/specs
+      - results/specs
     expire_in: 7 days
 
 allure_report:

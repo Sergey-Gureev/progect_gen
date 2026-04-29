@@ -48,9 +48,9 @@ def setup_swagger_coverage_{{ package }}(set_config):
     config_path = Path(f"config/swagger-coverage-config-{{ package }}.json")
     reporter.swagger_coverage_config = str(config_path) if config_path.exists() else None
 
-    Path("reports/specs").mkdir(parents=True, exist_ok=True)
+    Path("results/specs").mkdir(parents=True, exist_ok=True)
     swagger_file = Path(reporter.swagger_doc_file)
-    target = Path("reports/specs") / swagger_file.name
+    target = Path("results/specs") / swagger_file.name
     if swagger_file.exists():
         swagger_file.rename(target)
         reporter.swagger_doc_file = str(target)
@@ -67,12 +67,16 @@ async def {{ package }}_api_client(set_config) -> {{ package }}.ApiClient:
     output_dir = f"results/swagger-coverage/{host_part}-{{ package }}"
     trace = _coverage_trace(host, output_dir, '{{ package }}')
 
+    # Add or modify headers here as needed for this service
+    DEFAULT_HEADERS = {
+        "Authorization": "api_key",
+        "Content-Type": "application/json",
+    }
+
     configuration = {{ package }}.Configuration(host=host)
-    api_client = {{ package }}.ApiClient(
-        configuration=configuration,
-        header_name="Authorization",
-        header_value="api_key"
-    )
+    api_client = {{ package }}.ApiClient(configuration=configuration)
+    for name, value in DEFAULT_HEADERS.items():
+        api_client.set_default_header(name, value)
 
     rest_client = api_client.rest_client
     original_request = rest_client.request.__func__
