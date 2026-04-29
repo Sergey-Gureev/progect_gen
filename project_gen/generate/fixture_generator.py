@@ -7,13 +7,7 @@ def camelize(string):
     return "".join(word.capitalize() for word in string.split("_"))
 
 
-def underscore(word):
-    result = []
-    for i, char in enumerate(word):
-        if char.isupper() and i > 0:
-            result.append("_")
-        result.append(char.lower())
-    return "".join(result).replace("-", "_")
+from inflection import underscore
 
 
 class ClientCollector:
